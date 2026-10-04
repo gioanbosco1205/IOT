@@ -1,0 +1,10 @@
+# Thư viện Python cho Hệ Thống Báo Cháy IoT
+Flask>=2.3.0
+flask-cors>=4.0.0
+paho-mqtt>=1.6.1,<2.0.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+ultralytics>=8.0.0
+huggingface-hub>=0.20.0
+

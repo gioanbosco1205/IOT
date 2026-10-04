@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lịch Sử Báo Động & Nhật Ký Hệ Thống | Fire Alarm Command Center</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-main: #0b0f19;
+            --bg-card: rgba(18, 26, 43, 0.75);
+            --bg-card-border: rgba(255, 255, 255, 0.08);
+            --accent-fire: #ff3b30;
+            --accent-fire-glow: rgba(255, 59, 48, 0.35);
+            --accent-warn: #ff9500;
+            --accent-safe: #30d158;
+            --accent-blue: #0a84ff;
+            --text-primary: #f5f7fa;
+            --text-secondary: #9ba3b4;
+            --font-main: 'Plus Jakarta Sans', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            min-height: 100vh;
+        }
+
+        header {
+            background: rgba(11, 15, 25, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--bg-card-border);
+            padding: 14px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, #ff3b30, #ff9500);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #fff;
+        }
+
+        .nav-btn {
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid var(--bg-card-border);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            transform: translateY(-1px);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 32px auto;
+            padding: 0 24px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--bg-card-border);
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--bg-card-border);
+            color: #fff;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-family: var(--font-main);
+            font-size: 0.9rem;
+            outline: none;
+            width: 280px;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--bg-card-border);
+        }
+
+        th {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            font-size: 0.9rem;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+
+        .tag-fire {
+            background: rgba(255, 59, 48, 0.2);
+            color: #ff3b30;
+            border: 1px solid rgba(255, 59, 48, 0.4);
+        }
+
+        .tag-safe {
+            background: rgba(48, 209, 88, 0.2);
+            color: #30d158;
+            border: 1px solid rgba(48, 209, 88, 0.4);
+        }
+
+        .tag-ctrl {
+            background: rgba(10, 132, 255, 0.2);
+            color: #0a84ff;
+            border: 1px solid rgba(10, 132, 255, 0.4);
+        }
+
+        .time-col {
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <div class="brand-icon">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+            </div>
+            <div>
+                <h1 style="font-size: 1.15rem; font-weight: 700;">NHẬT KÝ SỰ KIỆN BÁO CHÁY</h1>
+                <p style="font-size: 0.8rem; color: var(--text-secondary);">Cơ sở dữ liệu SQLite (fire_history.db)</p>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 12px;">
+            <a href="/" class="nav-btn">
+                <i class="fa-solid fa-gauge-high"></i> Về Dashboard
+            </a>
+            <button class="nav-btn" style="color: #ff3b30; border-color: rgba(255,59,48,0.3);" onclick="clearAllHistory()">
+                <i class="fa-solid fa-trash-can"></i> Xóa Lịch Sử
+            </button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <div class="toolbar">
+                <input type="text" class="search-input" id="searchBox" placeholder="Tìm kiếm theo sự kiện hoặc nguồn..." onkeyup="filterTable()">
+                <button class="nav-btn" onclick="loadHistory()">
+                    <i class="fa-solid fa-rotate-right"></i> Tải Lại Dữ Liệu
+                </button>
+            </div>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#ID</th>
+                            <th>Thời Gian</th>
+                            <th>Loại Sự Kiện</th>
+                            <th>Nhiệt Độ</th>
+                            <th>Nồng Độ Khói</th>
+                            <th>Nguồn Báo</th>
+                            <th>Chi Tiết</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 30px;">
+                                Đang tải dữ liệu nhật ký...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allEvents = [];
+
+        async function loadHistory() {
+            try {
+                const res = await fetch('/api/history');
+                const data = await res.json();
+                if (data.status === 'success') {
+                    allEvents = data.events;
+                    renderTable(allEvents);
+                }
+            } catch (err) {
+                console.error("Lỗi:", err);
+            }
+        }
+
+        function renderTable(events) {
+            const tbody = document.getElementById('historyTableBody');
+            if (events.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 40px;">Chưa có sự kiện nào được ghi nhận.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = events.map(e => {
+                let tagClass = "tag-safe";
+                if (e.event_type.includes("CHÁY") || e.event_type.includes("NGUY HIỂM")) {
+                    tagClass = "tag-fire";
+                } else if (e.event_type.includes("ĐIỀU KHIỂN")) {
+                    tagClass = "tag-ctrl";
+                }
+
+                return `
+                    <tr>
+                        <td style="font-family: var(--font-mono); color: var(--text-secondary); font-weight: 700;">#${e.id}</td>
+                        <td class="time-col">${e.timestamp}</td>
+                        <td><span class="tag ${tagClass}">${e.event_type}</span></td>
+                        <td style="font-family: var(--font-mono);">${e.temperature ? e.temperature.toFixed(1) + ' °C' : '--'}</td>
+                        <td style="font-family: var(--font-mono);">${e.smoke !== null ? e.smoke + ' ADC' : '--'}</td>
+                        <td><b>${e.source}</b></td>
+                        <td style="color: var(--text-secondary); font-size: 0.85rem;">${e.details || ''}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function filterTable() {
+            const query = document.getElementById('searchBox').value.toLowerCase();
+            const filtered = allEvents.filter(e => 
+                e.event_type.toLowerCase().includes(query) ||
+                e.source.toLowerCase().includes(query) ||
+                (e.details && e.details.toLowerCase().includes(query))
+            );
+            renderTable(filtered);
+        }
+
+        async function clearAllHistory() {
+            if (confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử báo động không?")) {
+                await fetch('/api/history/clear', { method: 'POST' });
+                loadHistory();
+            }
+        }
+
+        loadHistory();
+    </script>
+</body>
+</html>
