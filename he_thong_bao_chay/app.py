@@ -11,19 +11,24 @@ import json
 import sqlite3
 import threading
 import datetime
+from functools import wraps
 import cv2
 import numpy as np
-from flask import Flask, render_template, Response, jsonify, request
+from flask import Flask, render_template, Response, jsonify, request, session, redirect, url_for
 from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash
 import paho.mqtt.client as mqtt
 
 # ==========================================
 # 1. CẤU HÌNH HỆ THỐNG (CONFIG)
 # ==========================================
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "iot_fire_alarm_master_secret_key_2026")
 CORS(app)
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "fire_history.db")
+BASE_DIR = os.path.dirname(__file__)
+DB_PATH = os.path.join(BASE_DIR, "fire_history.db")
+CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 
 # MQTT Settings
 MQTT_BROKER = os.getenv("MQTT_BROKER", "127.0.0.1")
@@ -32,12 +37,45 @@ TOPIC_SENSOR_DATA = "fire_alarm/sensor_data"
 TOPIC_CONTROL = "fire_alarm/control"
 TOPIC_AI_ALERT = "fire_alarm/ai_alert"
 
+# Hàm nạp / lưu cấu hình hệ thống
+def load_system_config():
+    default_config = {
+        "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
+        "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID", ""),
+        "telegram_enabled": True,
+        "temp_threshold": 50.0,
+        "smoke_threshold": 1400
+    }
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+                default_config.update(loaded)
+        except Exception as e:
+            print(f"[Config Error] {e}")
+    return default_config
+
+def save_system_config(cfg):
+    try:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=4, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"[Config Save Error] {e}")
+        return False
+
+sys_config = load_system_config()
+TELEGRAM_BOT_TOKEN = sys_config.get("telegram_bot_token", "")
+TELEGRAM_CHAT_ID = sys_config.get("telegram_chat_id", "")
+TELEGRAM_ENABLED = sys_config.get("telegram_enabled", True)
+last_telegram_alert_time = 0
+
 # Trạng thái toàn cục (Global State)
 latest_data = {
     "temperature": 0.0,
     "smoke": 0,
-    "smoke_threshold": 1400,
-    "temp_threshold": 50.0,
+    "smoke_threshold": sys_config.get("smoke_threshold", 1400),
+    "temp_threshold": sys_config.get("temp_threshold", 50.0),
     "is_fire": False,
     "relay_state": "OFF",
     "buzzer_state": "OFF",
@@ -61,12 +99,54 @@ ai_state = {
 data_lock = threading.Lock()
 camera_lock = threading.Lock()
 
+def send_telegram_alert(title, message_text, photo_bytes=None, force=False):
+    """Gửi tin nhắn + ảnh hiện trường qua Telegram Bot (bất đồng bộ)"""
+    global last_telegram_alert_time, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_ENABLED
+    now = time.time()
+    if not force and not TELEGRAM_ENABLED:
+        return False
+    if not force and (now - last_telegram_alert_time < 15.0):
+        return False # Chống spam dồn dập trong 15s
+
+    token = TELEGRAM_BOT_TOKEN.strip()
+    chat_id = TELEGRAM_CHAT_ID.strip()
+    if not token or not chat_id:
+        return False
+
+    def _worker():
+        global last_telegram_alert_time
+        try:
+            import requests
+            full_msg = f"🔥 <b>{title}</b>\n\n{message_text}\n\n⏰ <i>Thời gian: {datetime.datetime.now().strftime('%H:%M:%S %d/%m/%Y')}</i>"
+            if photo_bytes is not None:
+                url = f"https://api.telegram.org/bot{token}/sendPhoto"
+                files = {'photo': ('snapshot.jpg', photo_bytes, 'image/jpeg')}
+                data = {'chat_id': chat_id, 'caption': full_msg, 'parse_mode': 'HTML'}
+                res = requests.post(url, data=data, files=files, timeout=10)
+            else:
+                url = f"https://api.telegram.org/bot{token}/sendMessage"
+                data = {'chat_id': chat_id, 'text': full_msg, 'parse_mode': 'HTML'}
+                res = requests.post(url, json=data, timeout=10)
+
+            if res.status_code == 200:
+                print(f"📱 [Telegram Alert] ✅ Đã gửi cảnh báo thành công tới Chat ID: {chat_id}")
+                last_telegram_alert_time = time.time()
+            else:
+                print(f"❌ [Telegram Error] {res.status_code}: {res.text}")
+        except Exception as e:
+            print(f"❌ [Telegram Exception] {e}")
+
+    threading.Thread(target=_worker, daemon=True).start()
+    return True
+
 # ==========================================
-# 2. KHỞI TẠO CƠ SỞ DỮ LIỆU SQLITE
+# 2. KHỞI TẠO CƠ SỞ DỮ LIỆU SQLITE & AUTH
 # ==========================================
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    
+    # 1. Bảng lưu lịch sử sự kiện báo cháy
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS fire_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,8 +158,44 @@ def init_db():
             details TEXT
         )
     """)
+
+    # 2. Bảng lưu danh sách người dùng & phân quyền
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            fullname TEXT,
+            role TEXT DEFAULT 'ADMIN',
+            telegram_chat_id TEXT,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+    # Tự động tạo tài khoản Admin mặc định nếu chưa tồn tại
+    cursor.execute("SELECT id FROM users WHERE username = 'admin'")
+    if not cursor.fetchone():
+        admin_hash = generate_password_hash("admin123")
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("""
+            INSERT INTO users (username, password_hash, fullname, role, telegram_chat_id, created_at)
+            VALUES ('admin', ?, 'Quản Trị Viên Hệ Thống', 'ADMIN', ?, ?)
+        """, (admin_hash, TELEGRAM_CHAT_ID, now_str))
+        print("👤 [Auth DB] ✅ Đã khởi tạo tài khoản mặc định: admin / admin123")
+
     conn.commit()
     conn.close()
+
+def login_required(f):
+    """Decorator bảo vệ trang web và API, yêu cầu người dùng phải đăng nhập"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user' not in session:
+            if request.path.startswith('/api/'):
+                return jsonify({"status": "error", "message": "Vui lòng đăng nhập để thực hiện thao tác này!"}), 401
+            return redirect(url_for('login_page', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
 
 def log_event(event_type, temp, smoke, source, details=""):
     try:
@@ -166,6 +282,14 @@ def on_mqtt_message(client, userdata, msg):
                 smoke=latest_data["smoke"],
                 source="CẢM BIẾN PHẦN CỨNG" if not latest_data["ai_alert"] else "AI + CẢM BIẾN",
                 details=f"Nhiệt: {latest_data['temperature']}°C | Khói: {latest_data['smoke']}"
+            )
+            # Gửi cảnh báo Telegram kèm ảnh hiện trường
+            with camera_lock:
+                snap = current_jpeg_frame
+            send_telegram_alert(
+                title="🚨 CẢNH BÁO CHÁY: CẢM BIẾN VƯỢT NGƯỠNG!",
+                message_text=f"📍 <b>Trạm:</b> Node 1 Cảm biến\n🌡️ <b>Nhiệt độ:</b> {latest_data['temperature']} °C\n💨 <b>Nồng độ Khói:</b> {latest_data['smoke']} ADC\n🚰 <b>Hệ thống:</b> Đã kích hoạt Còi hú và Rơ-le!",
+                photo_bytes=snap
             )
             last_logged_alarm = True
         elif not current_fire and last_logged_alarm:
@@ -332,6 +456,15 @@ class FireDetector:
         if fire_detected and detected_label == "FIRE":
             if (now_time - self.last_ai_publish_time > 1.5) or not getattr(self, 'was_fire_active', False):
                 self.last_ai_publish_time = now_time
+                if not getattr(self, 'was_fire_active', False):
+                    # Gửi tin nhắn Telegram kèm ảnh hiện trường lúc bắt đầu thấy lửa
+                    with camera_lock:
+                        snap = current_jpeg_frame
+                    send_telegram_alert(
+                        title="🔥 CAMERA AI PHÁT HIỆN NGỌN LỬA!",
+                        message_text=f"👁️ <b>Phát hiện:</b> NGỌN LỬA (Độ tin cậy: {int(max_conf * 100)}%)\n🌡️ <b>Nhiệt độ:</b> {latest_data['temperature']} °C | 💨 <b>Khói:</b> {latest_data['smoke']} ADC\n🚨 <b>Hành động:</b> Đã phát còi báo động khẩn cấp!",
+                        photo_bytes=snap
+                    )
                 self.was_fire_active = True
                 payload = json.dumps({
                     "event": "FIRE_DETECTED",
@@ -463,13 +596,145 @@ def generate_video_stream():
 # ==========================================
 # 5. CÁC ĐƯỜNG DẪN WEB & API (FLASK ROUTES)
 # ==========================================
+@app.route('/login')
+def login_page():
+    if 'user' in session:
+        return redirect(url_for('index'))
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    username = session.get('user', {}).get('username', 'N/A')
+    log_event(
+        event_type="ĐĂNG XUẤT",
+        temp=latest_data["temperature"],
+        smoke=latest_data["smoke"],
+        source="HỆ THỐNG",
+        details=f"Tài khoản '{username}' đã đăng xuất."
+    )
+    session.clear()
+    return redirect(url_for('login_page'))
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_login():
+    try:
+        data = request.json or {}
+        username = data.get("username", "").strip()
+        password = data.get("password", "")
+
+        if not username or not password:
+            return jsonify({"status": "error", "message": "Vui lòng nhập tên đăng nhập và mật khẩu!"}), 400
+
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+        user = cursor.fetchone()
+        conn.close()
+
+        if user and check_password_hash(user["password_hash"], password):
+            session['user'] = {
+                "id": user["id"],
+                "username": user["username"],
+                "fullname": user["fullname"] or user["username"],
+                "role": user["role"] or "OPERATOR",
+                "telegram_chat_id": user["telegram_chat_id"] or ""
+            }
+
+            log_event(
+                event_type="ĐĂNG NHẬP HỆ THỐNG",
+                temp=latest_data["temperature"],
+                smoke=latest_data["smoke"],
+                source="WEB DASHBOARD",
+                details=f"Người dùng '{user['username']}' ({user['role']}) đăng nhập thành công."
+            )
+
+            return jsonify({
+                "status": "success",
+                "message": f"Chào mừng {user['fullname'] or user['username']}!",
+                "user": session['user']
+            })
+        else:
+            return jsonify({"status": "error", "message": "Tên đăng nhập hoặc mật khẩu không chính xác!"}), 401
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/auth/register', methods=['POST'])
+def api_register():
+    try:
+        data = request.json or {}
+        username = data.get("username", "").strip()
+        password = data.get("password", "")
+        fullname = data.get("fullname", "").strip() or username
+        role = data.get("role", "OPERATOR").upper()
+        telegram_chat_id = data.get("telegram_chat_id", "").strip()
+
+        if not username or not password:
+            return jsonify({"status": "error", "message": "Tên đăng nhập và mật khẩu không được để trống!"}), 400
+
+        if len(password) < 6:
+            return jsonify({"status": "error", "message": "Mật khẩu phải có ít nhất 6 ký tự!"}), 400
+
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
+        if cursor.fetchone():
+            conn.close()
+            return jsonify({"status": "error", "message": f"Tên tài khoản '{username}' đã tồn tại!"}), 400
+
+        pwd_hash = generate_password_hash(password)
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        cursor.execute("""
+            INSERT INTO users (username, password_hash, fullname, role, telegram_chat_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (username, pwd_hash, fullname, role, telegram_chat_id, now_str))
+        conn.commit()
+        user_id = cursor.lastrowid
+        conn.close()
+
+        # Tự động đăng nhập sau khi đăng ký
+        session['user'] = {
+            "id": user_id,
+            "username": username,
+            "fullname": fullname,
+            "role": role,
+            "telegram_chat_id": telegram_chat_id
+        }
+
+        log_event(
+            event_type="ĐĂNG KÝ TÀI KHOẢN",
+            temp=latest_data["temperature"],
+            smoke=latest_data["smoke"],
+            source="WEB AUTH",
+            details=f"Tạo tài khoản mới: '{username}' - Quyền: {role}"
+        )
+
+        return jsonify({
+            "status": "success",
+            "message": "Đăng ký tài khoản thành công!",
+            "user": session['user']
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/auth/me', methods=['GET'])
+def api_me():
+    if 'user' in session:
+        return jsonify({"status": "success", "user": session['user']})
+    return jsonify({"status": "error", "message": "Chưa đăng nhập"}), 401
+
 @app.route('/')
+@login_required
 def index():
-    return render_template('index.html')
+    return render_template('index.html', user=session.get('user', {}))
 
 @app.route('/history')
+@login_required
 def history():
-    return render_template('history.html')
+    return render_template('history.html', user=session.get('user', {}))
 
 @app.route('/video_feed')
 def video_feed():
@@ -483,11 +748,13 @@ def get_status():
             response_data = {
                 "sensor": latest_data,
                 "ai": ai_state,
-                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "user": session.get('user', None)
             }
     return jsonify(response_data)
 
 @app.route('/api/control', methods=['POST'])
+@login_required
 def post_control():
     try:
         req = request.json or {}
@@ -514,18 +781,204 @@ def post_control():
 
         mqtt_client.publish(TOPIC_CONTROL, json.dumps(payload))
 
-        # Log hành động can thiệp thủ công
+        current_user = session.get('user', {}).get('username', 'Anonymous')
+
+        # Log hành động can thiệp thủ công có kèm tên User
         log_event(
             event_type="ĐIỀU KHIỂN TỪ XA",
             temp=latest_data["temperature"],
             smoke=latest_data["smoke"],
-            source="WEB DASHBOARD",
+            source=f"USER: {current_user}",
             details=f"Lệnh gửi: {json.dumps(payload)}"
         )
 
         return jsonify({"status": "success", "sent_payload": payload})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
+
+@app.route('/api/telegram/config', methods=['GET', 'POST'])
+def handle_telegram_config():
+    global TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_ENABLED, sys_config
+    if request.method == 'POST':
+        try:
+            req = request.json or {}
+            token = req.get("telegram_bot_token", "").strip()
+            chat_id = req.get("telegram_chat_id", "").strip()
+            enabled = bool(req.get("telegram_enabled", True))
+
+            TELEGRAM_BOT_TOKEN = token
+            TELEGRAM_CHAT_ID = chat_id
+            TELEGRAM_ENABLED = enabled
+
+            sys_config["telegram_bot_token"] = token
+            sys_config["telegram_chat_id"] = chat_id
+            sys_config["telegram_enabled"] = enabled
+            save_system_config(sys_config)
+
+            return jsonify({
+                "status": "success",
+                "message": "Đã lưu cấu hình Telegram thành công!",
+                "config": {
+                    "telegram_bot_token": token,
+                    "telegram_chat_id": chat_id,
+                    "telegram_enabled": enabled
+                }
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)}), 400
+    else:
+        # GET: Trả về trạng thái cấu hình
+        return jsonify({
+            "status": "success",
+            "config": {
+                "telegram_bot_token": TELEGRAM_BOT_TOKEN,
+                "telegram_chat_id": TELEGRAM_CHAT_ID,
+                "telegram_enabled": TELEGRAM_ENABLED,
+                "is_configured": bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
+            }
+        })
+
+@app.route('/api/telegram/test', methods=['POST'])
+def test_telegram_alert():
+    """Endpoint gửi tin nhắn test trực tiếp tới Telegram để kiểm tra kết nối"""
+    try:
+        req = request.json or {}
+        custom_token = req.get("telegram_bot_token", "").strip() or TELEGRAM_BOT_TOKEN
+        custom_chat_id = req.get("telegram_chat_id", "").strip() or TELEGRAM_CHAT_ID
+
+        if not custom_token or not custom_chat_id:
+            return jsonify({"status": "error", "message": "Vui lòng nhập đầy đủ Bot Token và Chat ID!"}), 400
+
+        with camera_lock:
+            snap = current_jpeg_frame
+
+        import requests
+        now_str = datetime.datetime.now().strftime('%H:%M:%S %d/%m/%Y')
+        full_msg = (
+            f"🔔 <b>[TEST] THÔNG BÁO HỆ THỐNG BÁO CHÁY IOT</b>\n\n"
+            f"✅ <i>Kết nối Telegram Bot hoạt động hoàn hảo!</i>\n"
+            f"📍 <b>Trạm giám sát:</b> Server Flask + AI YOLOv8\n"
+            f"🌡️ <b>Nhiệt độ hiện tại:</b> {latest_data['temperature']} °C\n"
+            f"💨 <b>Nồng độ khói:</b> {latest_data['smoke']} ADC\n"
+            f"🎛️ <b>Chế độ hệ thống:</b> {latest_data['mode']}\n"
+            f"⏰ <b>Thời gian kiểm tra:</b> {now_str}"
+        )
+
+        if snap is not None:
+            url = f"https://api.telegram.org/bot{custom_token}/sendPhoto"
+            files = {'photo': ('test_snapshot.jpg', snap, 'image/jpeg')}
+            data = {'chat_id': custom_chat_id, 'caption': full_msg, 'parse_mode': 'HTML'}
+            res = requests.post(url, data=data, files=files, timeout=10)
+        else:
+            url = f"https://api.telegram.org/bot{custom_token}/sendMessage"
+            data = {'chat_id': custom_chat_id, 'text': full_msg, 'parse_mode': 'HTML'}
+            res = requests.post(url, json=data, timeout=10)
+
+        if res.status_code == 200:
+            return jsonify({"status": "success", "message": "Đã gửi thông báo test thành công tới Telegram!"})
+        else:
+            return jsonify({"status": "error", "message": f"Telegram API lỗi ({res.status_code}): {res.text}"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Lỗi gửi Telegram: {str(e)}"}), 500
+
+@app.route('/api/telegram/send_snapshot', methods=['POST'])
+def send_current_snapshot():
+    """Chụp ảnh webcam ngay lập tức và gửi qua Telegram"""
+    try:
+        with camera_lock:
+            snap = current_jpeg_frame
+        if snap is None:
+            return jsonify({"status": "error", "message": "Camera chưa sẵn sàng!"}), 400
+
+        sent = send_telegram_alert(
+            title="📸 ẢNH HIỆN TRƯỜNG THEO YÊU CẦU",
+            message_text=f"👁️ <b>Ảnh chụp từ Camera AI</b>\n🌡️ Nhiệt độ: {latest_data['temperature']} °C | 💨 Khói: {latest_data['smoke']} ADC",
+            photo_bytes=snap,
+            force=True
+        )
+        if sent:
+            return jsonify({"status": "success", "message": "Đang gửi ảnh hiện trường qua Telegram..."})
+        else:
+            return jsonify({"status": "error", "message": "Chưa cấu hình Telegram Bot Token hoặc Chat ID!"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/thresholds', methods=['POST'])
+def update_thresholds():
+    """Cập nhật ngưỡng nhiệt độ & khói và đồng bộ qua MQTT tới ESP32"""
+    try:
+        req = request.json or {}
+        temp_th = float(req.get("temp_threshold", latest_data["temp_threshold"]))
+        smoke_th = int(req.get("smoke_threshold", latest_data["smoke_threshold"]))
+
+        with data_lock:
+            latest_data["temp_threshold"] = temp_th
+            latest_data["smoke_threshold"] = smoke_th
+
+        sys_config["temp_threshold"] = temp_th
+        sys_config["smoke_threshold"] = smoke_th
+        save_system_config(sys_config)
+
+        # Gửi cấu hình ngưỡng mới xuống Node 1 qua MQTT
+        payload = {
+            "cmd": "SET_THRESHOLDS",
+            "temp_threshold": temp_th,
+            "smoke_threshold": smoke_th
+        }
+        mqtt_client.publish(TOPIC_CONTROL, json.dumps(payload))
+
+        log_event(
+            event_type="ĐỔI NGƯỠNG BÁO ĐỘNG",
+            temp=temp_th,
+            smoke=smoke_th,
+            source="WEB DASHBOARD",
+            details=f"Ngưỡng nhiệt: {temp_th}°C | Ngưỡng khói: {smoke_th}"
+        )
+
+        return jsonify({
+            "status": "success",
+            "message": "Đã cập nhật và đồng bộ ngưỡng cảnh báo!",
+            "temp_threshold": temp_th,
+            "smoke_threshold": smoke_th
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+@app.route('/api/sos', methods=['POST'])
+def trigger_sos():
+    """Kích hoạt khẩn cấp SOS: Bật còi, Bật bơm, Gửi Telegram kèm ảnh ngay lập tức"""
+    try:
+        with data_lock:
+            latest_data["is_fire"] = True
+            latest_data["buzzer_state"] = "ON"
+            latest_data["relay_state"] = "ON"
+            latest_data["mode"] = "MANUAL"
+
+        payload = {"relay": "ON", "buzzer": "ON", "mode": "MANUAL", "alert": "ON", "sos": True}
+        mqtt_client.publish(TOPIC_CONTROL, json.dumps(payload))
+
+        # Log sự kiện SOS
+        log_event(
+            event_type="🚨 BÁO ĐỘNG SOS KHẨN CẤP",
+            temp=latest_data["temperature"],
+            smoke=latest_data["smoke"],
+            source="NGƯỜI DÙNG KÍCH HOẠT",
+            details="Nút SOS khẩn cấp trên Web Dashboard đã được bấm!"
+        )
+
+        # Gửi Telegram kèm ảnh hiện trường ngay lập tức
+        with camera_lock:
+            snap = current_jpeg_frame
+        send_telegram_alert(
+            title="🆘 BÁO ĐỘNG SOS KHẨN CẤP TỪ DASHBOARD!",
+            message_text=f"⚠️ <b>NGƯỜI DÙNG ĐÃ KÍCH HOẠT SOS!</b>\n🌡️ Nhiệt độ: {latest_data['temperature']} °C | 💨 Khói: {latest_data['smoke']} ADC\n🚨 Còi hú và Bơm chữa cháy đã được kích hoạt tối đa!",
+            photo_bytes=snap,
+            force=True
+        )
+
+        return jsonify({"status": "success", "message": "ĐÃ KÍCH HOẠT BÁO ĐỘNG SOS VÀ GỬI TIN NHẮN KHẨN CẤP!"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/history', methods=['GET'])
 def get_history():

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Nhập & Phân Quyền | Hệ Thống Báo Cháy Thông Minh IoT</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-main: #0b0f19;
+            --bg-card: rgba(18, 26, 43, 0.85);
+            --bg-card-border: rgba(255, 255, 255, 0.1);
+            --accent-fire: #ff3b30;
+            --accent-fire-glow: rgba(255, 59, 48, 0.4);
+            --accent-warn: #ff9500;
+            --accent-safe: #30d158;
+            --accent-blue: #0a84ff;
+            --accent-telegram: #229ED9;
+            --text-primary: #f5f7fa;
+            --text-secondary: #9ba3b4;
+            --font-main: 'Plus Jakarta Sans', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(255, 59, 48, 0.12) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(10, 132, 255, 0.12) 0%, transparent 50%);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Floating Background Shapes */
+        .bg-glow-1 {
+            position: absolute;
+            width: 450px;
+            height: 450px;
+            background: radial-gradient(circle, rgba(255, 59, 48, 0.18), transparent 70%);
+            top: -100px;
+            left: -100px;
+            filter: blur(50px);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .bg-glow-2 {
+            position: absolute;
+            width: 450px;
+            height: 450px;
+            background: radial-gradient(circle, rgba(10, 132, 255, 0.15), transparent 70%);
+            bottom: -100px;
+            right: -100px;
+            filter: blur(50px);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .auth-container {
+            width: 100%;
+            max-width: 440px;
+            background: var(--bg-card);
+            backdrop-filter: blur(24px);
+            border: 1px solid var(--bg-card-border);
+            border-radius: 24px;
+            padding: 36px 32px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(255, 59, 48, 0.1);
+            position: relative;
+            z-index: 10;
+        }
+
+        .brand-header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .brand-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, #ff3b30, #ff9500);
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            color: #fff;
+            box-shadow: 0 6px 20px var(--accent-fire-glow);
+            margin-bottom: 14px;
+        }
+
+        .brand-title {
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: -0.3px;
+        }
+
+        .brand-sub {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* Tab Switcher */
+        .tab-switcher {
+            display: flex;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--bg-card-border);
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 24px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, rgba(255, 59, 48, 0.25), rgba(255, 149, 0, 0.15));
+            color: #fff;
+            border: 1px solid rgba(255, 59, 48, 0.4);
+            box-shadow: 0 2px 10px rgba(255, 59, 48, 0.2);
+        }
+
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 14px;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .custom-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--bg-card-border);
+            color: #fff;
+            padding: 12px 14px 12px 42px;
+            border-radius: 12px;
+            font-family: var(--font-main);
+            font-size: 0.9rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .custom-input:focus {
+            border-color: var(--accent-fire);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 15px rgba(255, 59, 48, 0.25);
+        }
+
+        .custom-select {
+            width: 100%;
+            background: rgba(18, 26, 43, 0.95);
+            border: 1px solid var(--bg-card-border);
+            color: #fff;
+            padding: 12px 14px 12px 42px;
+            border-radius: 12px;
+            font-family: var(--font-main);
+            font-size: 0.9rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .submit-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #ff3b30, #ff9500);
+            color: #fff;
+            border: none;
+            padding: 13px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 800;
+            cursor: pointer;
+            margin-top: 10px;
+            box-shadow: 0 4px 20px var(--accent-fire-glow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.25s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(255, 59, 48, 0.6);
+        }
+
+        /* Demo Account Helper */
+        .demo-box {
+            background: rgba(10, 132, 255, 0.08);
+            border: 1px dashed rgba(10, 132, 255, 0.35);
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .demo-box b {
+            color: var(--accent-blue);
+            font-family: var(--font-mono);
+        }
+
+        /* Alert Toast */
+        .alert-msg {
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .alert-msg.error {
+            background: rgba(255, 59, 48, 0.2);
+            border: 1px solid rgba(255, 59, 48, 0.5);
+            color: #ff3b30;
+        }
+
+        .alert-msg.success {
+            background: rgba(48, 209, 88, 0.2);
+            border: 1px solid rgba(48, 209, 88, 0.5);
+            color: #30d158;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+
+    <div class="auth-container">
+        
+        <div class="brand-header">
+            <div class="brand-icon">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <h1 class="brand-title">TRUNG TÂM BÁO CHÁY IOT</h1>
+            <p class="brand-sub">Xác thực người dùng & Phân quyền quản trị</p>
+        </div>
+
+        <!-- Tab Switcher -->
+        <div class="tab-switcher">
+            <button class="tab-btn active" id="tabLogin" onclick="switchTab('login')">
+                <i class="fa-solid fa-right-to-bracket"></i> Đăng Nhập
+            </button>
+            <button class="tab-btn" id="tabRegister" onclick="switchTab('register')">
+                <i class="fa-solid fa-user-plus"></i> Đăng Ký
+            </button>
+        </div>
+
+        <!-- Alert Notification -->
+        <div id="alertBox" class="alert-msg"></div>
+
+        <!-- 1. FORM ĐĂNG NHẬP -->
+        <form id="formLogin" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label class="form-label">Tên đăng nhập</label>
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-user input-icon"></i>
+                    <input type="text" id="loginUsername" class="custom-input" placeholder="Nhập username..." required autocomplete="username">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Mật khẩu</label>
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-lock input-icon"></i>
+                    <input type="password" id="loginPassword" class="custom-input" placeholder="Nhập mật khẩu..." required autocomplete="current-password">
+                </div>
+            </div>
+
+            <button type="submit" class="submit-btn" id="btnLogin">
+                <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng Nhập Hệ Thống
+            </button>
+        </form>
+
+        <!-- 2. FORM ĐĂNG KÝ -->
+        <form id="formRegister" onsubmit="handleRegister(event)" style="display: none;">
+            <div class="form-group">
+                <label class="form-label">Họ và Tên</label>
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-id-card input-icon"></i>
+                    <input type="text" id="regFullname" class="custom-input" placeholder="Ví dụ: Nguyễn Minh Khánh..." required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Tên đăng nhập (Username)</label>
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-user input-icon"></i>
+                    <input type="text" id="regUsername" class="custom-input" placeholder="Tên đăng nhập..." required autocomplete="username">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Mật khẩu</label>
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-lock input-icon"></i>
+                    <input type="password" id="regPassword" class="custom-input" placeholder="Tối thiểu 6 ký tự..." required autocomplete="new-password">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Vai trò / Phân quyền</label>
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-user-shield input-icon"></i>
+                    <select id="regRole" class="custom-select">
+                        <option value="ADMIN">👑 Quản Trị Viên (Full Quyền)</option>
+                        <option value="OPERATOR">🛡️ Kỹ Thuật Viên Vận Hành (Operator)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Telegram Chat ID (Tùy chọn)</label>
+                <div class="input-wrapper">
+                    <i class="fa-brands fa-telegram input-icon" style="color: var(--accent-telegram);"></i>
+                    <input type="text" id="regTelegram" class="custom-input" placeholder="Ví dụ: 672968192">
+                </div>
+            </div>
+
+            <button type="submit" class="submit-btn" id="btnRegister" style="background: linear-gradient(135deg, #0a84ff, #229ED9);">
+                <i class="fa-solid fa-check"></i> Tạo Tài Khoản Mới
+            </button>
+        </form>
+
+        <!-- Demo Account Box -->
+        <div class="demo-box">
+            <span>🔑 <b>Tài khoản mặc định:</b></span>
+            <span>Tên đăng nhập: <b>admin</b> | Mật khẩu: <b>admin123</b></span>
+        </div>
+
+    </div>
+
+    <script>
+        function showAlert(msg, type = 'error') {
+            const box = document.getElementById('alertBox');
+            box.className = `alert-msg ${type}`;
+            let icon = type === 'error' ? '<i class="fa-solid fa-circle-exclamation"></i>' : '<i class="fa-solid fa-circle-check"></i>';
+            box.innerHTML = `${icon} <span>${msg}</span>`;
+            box.style.display = 'flex';
+        }
+
+        function switchTab(tab) {
+            document.getElementById('alertBox').style.display = 'none';
+            if (tab === 'login') {
+                document.getElementById('tabLogin').className = 'tab-btn active';
+                document.getElementById('tabRegister').className = 'tab-btn';
+                document.getElementById('formLogin').style.display = 'block';
+                document.getElementById('formRegister').style.display = 'none';
+            } else {
+                document.getElementById('tabLogin').className = 'tab-btn';
+                document.getElementById('tabRegister').className = 'tab-btn active';
+                document.getElementById('formLogin').style.display = 'none';
+                document.getElementById('formRegister').style.display = 'block';
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            const btn = document.getElementById('btnLogin');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang xác thực...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showAlert('Đăng nhập thành công! Đang chuyển hướng...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 600);
+                } else {
+                    showAlert(data.message || 'Sai tài khoản hoặc mật khẩu!', 'error');
+                }
+            } catch (err) {
+                showAlert('Lỗi kết nối máy chủ: ' + err.message, 'error');
+            } finally {
+                btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng Nhập Hệ Thống';
+                btn.disabled = false;
+            }
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const fullname = document.getElementById('regFullname').value.trim();
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const role = document.getElementById('regRole').value;
+            const telegram_chat_id = document.getElementById('regTelegram').value.trim();
+
+            const btn = document.getElementById('btnRegister');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tạo tài khoản...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fullname, username, password, role, telegram_chat_id })
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showAlert('Tạo tài khoản thành công! Đang chuyển hướng...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 800);
+                } else {
+                    showAlert(data.message || 'Lỗi đăng ký tài khoản!', 'error');
+                }
+            } catch (err) {
+                showAlert('Lỗi kết nối máy chủ: ' + err.message, 'error');
+            } finally {
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> Tạo Tài Khoản Mới';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

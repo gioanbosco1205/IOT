@@ -16,3 +16,10 @@
 * `he_thong_bao_chay/app.py`: Backend Flask + WebSockets.
 * `he_thong_bao_chay/templates/`: Giao diện Web Dashboard.
 * `plan_3.md`: Sơ đồ đấu nối chi tiết 2 Node 100% không dùng breadboard.
+
+Tài khoản Admin mặc định:
+Tên đăng nhập: admin
+Mật khẩu: admin123
+Hoặc tài khoản cá nhân của bạn:
+Tên đăng nhập: minhkhanh
+Mật khẩu: password123

@@ -201,13 +201,24 @@
             </div>
         </div>
 
-        <div style="display: flex; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div class="nav-btn" style="background: rgba(10, 132, 255, 0.12); border-color: rgba(10, 132, 255, 0.3); pointer-events: none;">
+                <i class="fa-solid fa-user-shield" style="color: var(--accent-blue);"></i>
+                <span style="font-weight: 700; color: #fff;">{{ user.fullname or user.username or 'Admin' }}</span>
+                <span style="font-size: 0.72rem; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius: 4px; color: var(--accent-blue); font-weight: 800;">{{ user.role or 'ADMIN' }}</span>
+            </div>
             <a href="/" class="nav-btn">
-                <i class="fa-solid fa-gauge-high"></i> Về Dashboard
+                <i class="fa-solid fa-gauge-high"></i> Dashboard
             </a>
-            <button class="nav-btn" style="color: #ff3b30; border-color: rgba(255,59,48,0.3);" onclick="clearAllHistory()">
-                <i class="fa-solid fa-trash-can"></i> Xóa Lịch Sử
+            <button class="nav-btn" style="color: var(--accent-safe); border-color: rgba(48,209,88,0.3);" onclick="exportToCSV()">
+                <i class="fa-solid fa-file-csv"></i> Xuất CSV
             </button>
+            <button class="nav-btn" style="color: #ff3b30; border-color: rgba(255,59,48,0.3);" onclick="clearAllHistory()">
+                <i class="fa-solid fa-trash-can"></i> Xóa
+            </button>
+            <a href="/logout" class="nav-btn" style="color: #ff3b30; border-color: rgba(255,59,48,0.3);" title="Đăng Xuất">
+                <i class="fa-solid fa-right-from-bracket"></i> Đăng Xuất
+            </a>
         </div>
     </header>
 
@@ -305,6 +316,33 @@
                 await fetch('/api/history/clear', { method: 'POST' });
                 loadHistory();
             }
+        }
+
+        function exportToCSV() {
+            if (allEvents.length === 0) {
+                alert("Không có dữ liệu để xuất file CSV!");
+                return;
+            }
+            const headers = ["ID", "Thoi Gian", "Loai Su Kien", "Nhiet Do (C)", "Khoi (ADC)", "Nguon Bao", "Chi Tiet"];
+            const rows = allEvents.map(e => [
+                e.id,
+                `"${e.timestamp}"`,
+                `"${e.event_type}"`,
+                e.temperature !== null ? e.temperature : "",
+                e.smoke !== null ? e.smoke : "",
+                `"${e.source}"`,
+                `"${(e.details || '').replace(/"/g, '""')}"`
+            ]);
+
+            const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `lich_su_bao_chay_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         loadHistory();

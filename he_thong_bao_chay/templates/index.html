@@ -24,6 +24,7 @@
             --accent-safe: #30d158;
             --accent-safe-glow: rgba(48, 209, 88, 0.25);
             --accent-blue: #0a84ff;
+            --accent-telegram: #229ED9;
             --text-primary: #f5f7fa;
             --text-secondary: #9ba3b4;
             --font-main: 'Plus Jakarta Sans', sans-serif;
@@ -94,7 +95,7 @@
         .header-actions {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 12px;
         }
 
         .status-badge {
@@ -141,6 +142,7 @@
             align-items: center;
             gap: 8px;
             transition: all 0.2s ease;
+            cursor: pointer;
         }
 
         .nav-btn:hover {
@@ -152,7 +154,7 @@
         .dashboard-container {
             max-width: 1440px;
             margin: 0 auto;
-            padding: 28px 32px;
+            padding: 24px 32px 60px 32px;
             display: grid;
             grid-template-columns: 1.2fr 1fr;
             gap: 24px;
@@ -161,6 +163,7 @@
         @media (max-width: 1080px) {
             .dashboard-container {
                 grid-template-columns: 1fr;
+                padding: 16px;
             }
         }
 
@@ -170,7 +173,7 @@
             backdrop-filter: blur(16px);
             border: 1px solid var(--bg-card-border);
             border-radius: 18px;
-            padding: 24px;
+            padding: 22px;
             position: relative;
             overflow: hidden;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
@@ -180,7 +183,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
 
         .card-title {
@@ -236,7 +239,7 @@
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 16px;
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
 
         .metric-tile {
@@ -343,8 +346,8 @@
         .controls-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-            margin-top: 18px;
+            gap: 14px;
+            margin-top: 14px;
         }
 
         .ctrl-btn {
@@ -404,36 +407,250 @@
             display: block;
         }
 
+        /* SOS Panic Button */
+        .sos-panic-btn {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #ff3b30, #d70015);
+            border: none;
+            border-radius: 14px;
+            padding: 16px;
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 1.05rem;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 25px rgba(255, 59, 48, 0.45);
+            transition: all 0.25s ease;
+            animation: pulse-sos 2s infinite ease-in-out;
+        }
+
+        .sos-panic-btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 6px 30px rgba(255, 59, 48, 0.7);
+        }
+
+        @keyframes pulse-sos {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.015); }
+            100% { transform: scale(1); }
+        }
+
+        /* Telegram Form & Inputs */
+        .telegram-form {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .input-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .input-label a {
+            color: var(--accent-telegram);
+            text-decoration: none;
+        }
+
+        .input-label a:hover {
+            text-decoration: underline;
+        }
+
+        .custom-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--bg-card-border);
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .custom-input:focus {
+            border-color: var(--accent-telegram);
+            box-shadow: 0 0 10px rgba(34, 158, 217, 0.2);
+        }
+
+        .action-btn-row {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .telegram-btn {
+            background: linear-gradient(135deg, #229ED9, #1c85b8);
+            border: none;
+            color: #fff;
+            padding: 11px 16px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .telegram-btn:hover {
+            background: linear-gradient(135deg, #2bb4f7, #229ED9);
+            transform: translateY(-1px);
+        }
+
+        .test-alert-btn {
+            background: rgba(255, 149, 0, 0.15);
+            border: 1px solid rgba(255, 149, 0, 0.4);
+            color: var(--accent-warn);
+            padding: 11px 16px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .test-alert-btn:hover {
+            background: rgba(255, 149, 0, 0.25);
+            transform: translateY(-1px);
+        }
+
+        /* Threshold Sliders */
+        .slider-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--bg-card-border);
+            padding: 14px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            margin-bottom: 8px;
+        }
+
+        .slider-header span {
+            color: var(--text-secondary);
+        }
+
+        .slider-header b {
+            font-family: var(--font-mono);
+            color: #fff;
+        }
+
+        .custom-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .custom-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(10, 132, 255, 0.5);
+            transition: transform 0.1s;
+        }
+
+        .custom-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
         /* Chart Canvas */
         .chart-container {
             width: 100%;
-            height: 220px;
-            margin-top: 10px;
+            height: 200px;
+            margin-top: 8px;
         }
 
-        /* System Info Pill List */
+        /* Info Pills */
         .info-pill-list {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 8px;
             margin-top: 14px;
         }
 
         .info-pill {
             background: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--bg-card-border);
-            padding: 8px 14px;
-            border-radius: 10px;
-            font-size: 0.8rem;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.78rem;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
 
         .info-pill span {
             font-weight: 700;
             font-family: var(--font-mono);
             color: var(--accent-blue);
+        }
+
+        /* Toast Notifications */
+        #toastContainer {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            background: rgba(18, 26, 43, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--bg-card-border);
+            padding: 14px 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #fff;
+            animation: slideIn 0.3s ease;
+            max-width: 380px;
+        }
+
+        .toast.success { border-left: 4px solid var(--accent-safe); }
+        .toast.error { border-left: 4px solid var(--accent-fire); }
+        .toast.info { border-left: 4px solid var(--accent-telegram); }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
         }
     </style>
 </head>
@@ -447,7 +664,7 @@
             </div>
             <div class="brand-text">
                 <h1>HỆ THỐNG BÁO CHÁY THÔNG MINH IOT</h1>
-                <p>ESP32-C3 Super Mini + AI Flame Vision System</p>
+                <p>ESP32-C3 Super Mini + AI Vision + Telegram Alerts</p>
             </div>
         </div>
 
@@ -456,8 +673,20 @@
                 <div class="status-dot" id="mqttDot"></div>
                 <span id="mqttStatusText">MQTT: Đang kết nối...</span>
             </div>
+            <div class="status-badge" id="telegramBadge">
+                <i class="fa-brands fa-telegram" style="color: var(--accent-telegram);"></i>
+                <span id="telegramStatusText">Telegram: Đang kiểm tra...</span>
+            </div>
             <a href="/history" class="nav-btn">
-                <i class="fa-solid fa-clock-rotate-left"></i> Lịch Sử Báo Động
+                <i class="fa-solid fa-clock-rotate-left"></i> Lịch Sử
+            </a>
+            <div class="status-badge" style="background: rgba(10, 132, 255, 0.12); border-color: rgba(10, 132, 255, 0.3);">
+                <i class="fa-solid fa-user-shield" style="color: var(--accent-blue);"></i>
+                <span style="font-weight: 700; color: #fff;">{{ user.fullname or user.username or 'Admin' }}</span>
+                <span style="font-size: 0.72rem; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius: 4px; color: var(--accent-blue); font-weight: 800;">{{ user.role or 'ADMIN' }}</span>
+            </div>
+            <a href="/logout" class="nav-btn" style="color: #ff3b30; border-color: rgba(255,59,48,0.3);" title="Đăng Xuất">
+                <i class="fa-solid fa-right-from-bracket"></i> Đăng Xuất
             </a>
         </div>
     </header>
@@ -471,7 +700,7 @@
                 <i class="fa-solid fa-triangle-exclamation"></i>
                 <div>
                     <h3>CẢNH BÁO NGUY HIỂM: PHÁT HIỆN ĐÁM CHÁY!</h3>
-                    <p id="dangerReason">Hệ thống đã tự động kích hoạt Còi hú và Bơm nước chữa cháy.</p>
+                    <p id="dangerReason">Hệ thống đã tự động kích hoạt Còi hú, Bơm nước và gửi ảnh Telegram.</p>
                 </div>
             </div>
             <button class="nav-btn" style="background: rgba(0,0,0,0.4); border-color: var(--accent-fire);" onclick="manualMuteBuzzer()">
@@ -503,6 +732,12 @@
                         FPS: -- | Conf: 0% | Model: YOLOv8n
                     </div>
                 </div>
+
+                <div style="margin-top: 14px; display: flex; justify-content: flex-end;">
+                    <button class="nav-btn" onclick="captureAndSendTelegram()" style="border-color: rgba(34, 158, 217, 0.4);">
+                        <i class="fa-solid fa-camera" style="color: var(--accent-telegram);"></i> Chụp & Gửi Ảnh Tức Thì Qua Telegram
+                    </button>
+                </div>
             </div>
 
             <!-- Realtime Sensor Graph Card -->
@@ -512,7 +747,7 @@
                         <i class="fa-solid fa-chart-line" style="color: var(--accent-blue);"></i> Đồ Thị Cảm Biến Thời Gian Thực
                     </div>
                     <span style="font-size: 0.8rem; color: var(--text-secondary); font-family: var(--font-mono);">
-                        Cập nhật: 1.5s/lần
+                        Cập nhật: 1.2s/lần
                     </span>
                 </div>
 
@@ -523,14 +758,14 @@
 
         </div>
 
-        <!-- CỘT 2: SENSOR GAUGES & REMOTE CONTROLS -->
+        <!-- CỘT 2: HARDWARE GAUGES, REMOTE CONTROLS & TELEGRAM CONFIG -->
         <div style="display: flex; flex-direction: column; gap: 24px;">
 
             <!-- Metrics Overview Card -->
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">
-                        <i class="fa-solid fa-microchip" style="color: var(--accent-warn);"></i> Cảm Biến Phần Cứng (ESP32-C3)
+                        <i class="fa-solid fa-microchip" style="color: var(--accent-warn);"></i> Cảm Biến Phần Cứng (Node 1)
                     </div>
                     <span style="font-size: 0.8rem; color: var(--text-secondary);" id="uptimeText">
                         Uptime: 0s
@@ -575,17 +810,27 @@
                     </div>
                 </div>
 
-                <!-- Info Pills -->
-                <div class="info-pill-list">
-                    <div class="info-pill">
-                        <i class="fa-solid fa-network-wired"></i> Board: <span>ESP32-C3</span>
+                <!-- Cài đặt ngưỡng động -->
+                <div class="slider-box">
+                    <div class="slider-header">
+                        <span>Chỉnh ngưỡng nhiệt báo động:</span>
+                        <b id="sliderTempVal">50.0 °C</b>
                     </div>
-                    <div class="info-pill">
-                        <i class="fa-solid fa-tv"></i> OLED: <span>SSD1306 (I2C)</span>
+                    <input type="range" min="30" max="85" step="1" value="50" class="custom-slider" id="inputTempThresh" oninput="onSliderChange()">
+                </div>
+
+                <div class="slider-box">
+                    <div class="slider-header">
+                        <span>Chỉnh ngưỡng khói báo động:</span>
+                        <b id="sliderSmokeVal">1400 ADC</b>
                     </div>
-                    <div class="info-pill">
-                        <i class="fa-solid fa-wifi"></i> WiFi Mode: <span>WiFiManager</span>
-                    </div>
+                    <input type="range" min="400" max="2500" step="50" value="1400" class="custom-slider" id="inputSmokeThresh" oninput="onSliderChange()">
+                </div>
+
+                <div style="display: flex; justify-content: flex-end;">
+                    <button class="nav-btn" onclick="saveThresholds()" style="border-color: rgba(10, 132, 255, 0.4); font-size: 0.8rem; padding: 6px 14px;">
+                        <i class="fa-solid fa-floppy-disk" style="color: var(--accent-blue);"></i> Áp Dụng Ngưỡng Mới
+                    </button>
                 </div>
             </div>
 
@@ -602,6 +847,11 @@
                 </div>
 
                 <div class="controls-grid">
+                    <!-- Nút SOS Khẩn Cấp -->
+                    <button class="sos-panic-btn" onclick="triggerSosPanic()">
+                        <i class="fa-solid fa-tower-broadcast"></i> KÍCH HOẠT SOS BÁO ĐỘNG KHẨN CẤP
+                    </button>
+
                     <!-- Nút Bật Bơm / Relay -->
                     <button class="ctrl-btn" id="btnRelay" onclick="toggleRelay()">
                         <div class="ctrl-icon"><i class="fa-solid fa-faucet-drip"></i></div>
@@ -623,18 +873,67 @@
                         <span class="ctrl-sub" id="lblModeDesc">Tự Động (Auto Logic)</span>
                     </button>
 
-                    <!-- Nút Test Báo Động Khẩn Cấp -->
-                    <button class="ctrl-btn" style="border-color: rgba(255, 59, 48, 0.4);" onclick="triggerTestAlarm()">
-                        <div class="ctrl-icon" style="color: var(--accent-fire);"><i class="fa-solid fa-bell"></i></div>
-                        <span class="ctrl-label">Test Báo Cháy Khẩn</span>
-                        <span class="ctrl-sub">Kiểm tra còi & bơm (3s)</span>
+                    <!-- Nút Tắt Khẩn & Reset An Toàn -->
+                    <button class="ctrl-btn" style="border-color: rgba(48, 209, 88, 0.4);" onclick="manualMuteBuzzer()">
+                        <div class="ctrl-icon" style="color: var(--accent-safe);"><i class="fa-solid fa-shield-heart"></i></div>
+                        <span class="ctrl-label">Dập Tắt & Đặt Lại</span>
+                        <span class="ctrl-sub">Tắt còi, bơm & về AUTO</span>
                     </button>
+                </div>
+            </div>
+
+            <!-- Telegram Alert Config Card -->
+            <div class="card" style="border-color: rgba(34, 158, 217, 0.3);">
+                <div class="card-header">
+                    <div class="card-title" style="color: #fff;">
+                        <i class="fa-brands fa-telegram" style="color: var(--accent-telegram);"></i> Cấu Hình Cảnh Báo Telegram Bot
+                    </div>
+                    <span style="font-size: 0.78rem; color: var(--accent-telegram); font-weight: 600;" id="telegramStatusPill">
+                        Chưa cấu hình
+                    </span>
+                </div>
+
+                <div class="telegram-form">
+                    <div class="input-group">
+                        <div class="input-label">
+                            <span>1. Telegram Bot Token:</span>
+                            <a href="https://t.me/BotFather" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square"></i> Tạo qua @BotFather</a>
+                        </div>
+                        <input type="password" id="txtTelegramToken" class="custom-input" placeholder="Ví dụ: 789123456:AAFd4...">
+                    </div>
+
+                    <div class="input-group">
+                        <div class="input-label">
+                            <span>2. Telegram Chat ID:</span>
+                            <a href="https://t.me/userinfobot" target="_blank"><i class="fa-solid fa-arrow-up-right-from-square"></i> Lấy ID qua @userinfobot</a>
+                        </div>
+                        <input type="text" id="txtTelegramChatId" class="custom-input" placeholder="Ví dụ: 123456789 hoặc -100xxxxxxx (Group)">
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+                        <input type="checkbox" id="chkTelegramEnabled" checked style="accent-color: var(--accent-telegram); width: 16px; height: 16px;">
+                        <label for="chkTelegramEnabled" style="font-size: 0.82rem; color: var(--text-secondary); cursor: pointer;">
+                            Bật tự động gửi tin nhắn + ảnh hiện trường khi phát hiện cháy / khói
+                        </label>
+                    </div>
+
+                    <div class="action-btn-row">
+                        <button class="telegram-btn" onclick="saveTelegramConfig()">
+                            <i class="fa-solid fa-floppy-disk"></i> Lưu Cấu Hình
+                        </button>
+                        <button class="test-alert-btn" onclick="testTelegramAlert()">
+                            <i class="fa-solid fa-paper-plane"></i> Gửi Thử Báo Động (Test)
+                        </button>
+                    </div>
                 </div>
             </div>
 
         </div>
 
     </main>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer"></div>
 
     <!-- JavaScript Logic & Chart -->
     <script>
@@ -646,7 +945,7 @@
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.type = "sawtooth";
-                osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
                 osc.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.1);
                 gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
@@ -655,6 +954,25 @@
                 osc.start();
                 osc.stop(audioCtx.currentTime + 0.3);
             } catch(e) {}
+        }
+
+        // Toast Notification System
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            let icon = '<i class="fa-solid fa-circle-info" style="color: #229ED9;"></i>';
+            if (type === 'success') icon = '<i class="fa-solid fa-circle-check" style="color: #30d158;"></i>';
+            if (type === 'error') icon = '<i class="fa-solid fa-circle-exclamation" style="color: #ff3b30;"></i>';
+            
+            toast.innerHTML = `${icon} <span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                toast.style.transition = 'all 0.4s ease';
+                setTimeout(() => toast.remove(), 400);
+            }, 3500);
         }
 
         // Khởi tạo Chart.js
@@ -710,7 +1028,7 @@
                         type: 'linear',
                         position: 'right',
                         min: 0,
-                        max: 2000,
+                        max: 2500,
                         grid: { drawOnChartArea: false },
                         ticks: { color: '#ff9500' }
                     }
@@ -719,6 +1037,7 @@
         });
 
         let currentSystemState = {};
+        let isInitialLoad = true;
 
         // Polling trạng thái hệ thống từ API
         async function fetchStatus() {
@@ -759,10 +1078,19 @@
             // 3. Cảm biến Khói
             document.getElementById('valSmoke').textContent = s.smoke;
             document.getElementById('lblSmokeThresh').textContent = s.smoke_threshold;
-            const smokePercent = Math.min(100, (s.smoke / 1500) * 100);
+            const smokePercent = Math.min(100, (s.smoke / 2000) * 100);
             const barSmoke = document.getElementById('barSmoke');
             barSmoke.style.width = `${smokePercent}%`;
             barSmoke.style.background = s.smoke >= s.smoke_threshold ? '#ff3b30' : (s.smoke >= s.smoke_threshold*0.7 ? '#ff9500' : '#30d158');
+
+            // Cập nhật giá trị ban đầu cho sliders nếu là lần đầu nạp
+            if (isInitialLoad && s.temp_threshold && s.smoke_threshold) {
+                document.getElementById('inputTempThresh').value = s.temp_threshold;
+                document.getElementById('sliderTempVal').textContent = `${s.temp_threshold} °C`;
+                document.getElementById('inputSmokeThresh').value = s.smoke_threshold;
+                document.getElementById('sliderSmokeVal').textContent = `${s.smoke_threshold} ADC`;
+                isInitialLoad = false;
+            }
 
             // 4. AI Camera Status
             const aiPill = document.getElementById('aiStatusPill');
@@ -827,7 +1155,7 @@
 
             // 8. Cập nhật Chart
             const nowTime = new Date().toLocaleTimeString('vi-VN');
-            if (chartData.labels.length > 20) {
+            if (chartData.labels.length > 25) {
                 chartData.labels.shift();
                 chartData.datasets[0].data.shift();
                 chartData.datasets[1].data.shift();
@@ -838,11 +1166,167 @@
             sensorChart.update();
         }
 
+        // Slider Threshold Input Handler
+        function onSliderChange() {
+            const temp = document.getElementById('inputTempThresh').value;
+            const smoke = document.getElementById('inputSmokeThresh').value;
+            document.getElementById('sliderTempVal').textContent = `${parseFloat(temp).toFixed(1)} °C`;
+            document.getElementById('sliderSmokeVal').textContent = `${smoke} ADC`;
+        }
+
+        async function saveThresholds() {
+            const temp_threshold = parseFloat(document.getElementById('inputTempThresh').value);
+            const smoke_threshold = parseInt(document.getElementById('inputSmokeThresh').value);
+
+            try {
+                const res = await fetch('/api/thresholds', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ temp_threshold, smoke_threshold })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast(`✅ Đã lưu ngưỡng: ${temp_threshold}°C | ${smoke_threshold} ADC`, 'success');
+                    fetchStatus();
+                } else {
+                    showToast(`❌ Lỗi: ${data.message}`, 'error');
+                }
+            } catch (err) {
+                showToast(`❌ Lỗi kết nối: ${err.message}`, 'error');
+            }
+        }
+
+        // Lấy cấu hình Telegram khi tải trang
+        async function loadTelegramConfig() {
+            try {
+                const res = await fetch('/api/telegram/config');
+                const data = await res.json();
+                if (data.status === 'success') {
+                    const cfg = data.config;
+                    if (cfg.telegram_bot_token) document.getElementById('txtTelegramToken').value = cfg.telegram_bot_token;
+                    if (cfg.telegram_chat_id) document.getElementById('txtTelegramChatId').value = cfg.telegram_chat_id;
+                    document.getElementById('chkTelegramEnabled').checked = cfg.telegram_enabled;
+
+                    const statusPill = document.getElementById('telegramStatusPill');
+                    const headerBadge = document.getElementById('telegramStatusText');
+                    if (cfg.is_configured) {
+                        statusPill.textContent = '🟢 Đã Kết Nối';
+                        statusPill.style.color = 'var(--accent-safe)';
+                        headerBadge.textContent = 'Telegram: Sẵn sàng';
+                    } else {
+                        statusPill.textContent = '🔴 Chưa cấu hình';
+                        statusPill.style.color = 'var(--accent-warn)';
+                        headerBadge.textContent = 'Telegram: Chưa cấu hình';
+                    }
+                }
+            } catch (e) {
+                console.error("Lỗi nạp cấu hình Telegram:", e);
+            }
+        }
+
+        // Lưu cấu hình Telegram
+        async function saveTelegramConfig() {
+            const token = document.getElementById('txtTelegramToken').value.trim();
+            const chat_id = document.getElementById('txtTelegramChatId').value.trim();
+            const enabled = document.getElementById('chkTelegramEnabled').checked;
+
+            try {
+                const res = await fetch('/api/telegram/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        telegram_bot_token: token,
+                        telegram_chat_id: chat_id,
+                        telegram_enabled: enabled
+                    })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast('✅ Đã lưu cấu hình Telegram thành công!', 'success');
+                    loadTelegramConfig();
+                } else {
+                    showToast(`❌ Lỗi lưu cấu hình: ${data.message}`, 'error');
+                }
+            } catch (err) {
+                showToast(`❌ Lỗi: ${err.message}`, 'error');
+            }
+        }
+
+        // Gửi thử tin nhắn kiểm tra Telegram Bot
+        async function testTelegramAlert() {
+            const token = document.getElementById('txtTelegramToken').value.trim();
+            const chat_id = document.getElementById('txtTelegramChatId').value.trim();
+
+            if (!token || !chat_id) {
+                showToast('⚠️ Vui lòng nhập Bot Token và Chat ID trước khi test!', 'error');
+                return;
+            }
+
+            showToast('📡 Đang gửi tin nhắn kiểm tra qua Telegram...', 'info');
+
+            try {
+                const res = await fetch('/api/telegram/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        telegram_bot_token: token,
+                        telegram_chat_id: chat_id
+                    })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast('🎉 Tin nhắn Telegram đã gửi thành công! Hãy kiểm tra điện thoại.', 'success');
+                    loadTelegramConfig();
+                } else {
+                    showToast(`❌ ${data.message}`, 'error');
+                }
+            } catch (err) {
+                showToast(`❌ Lỗi kết nối: ${err.message}`, 'error');
+            }
+        }
+
+        // Chụp ảnh webcam và gửi tức thì qua Telegram
+        async function captureAndSendTelegram() {
+            showToast('📸 Đang chụp ảnh và gửi qua Telegram...', 'info');
+            try {
+                const res = await fetch('/api/telegram/send_snapshot', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast('✅ Ảnh hiện trường đã được gửi tới Telegram!', 'success');
+                } else {
+                    showToast(`❌ ${data.message}`, 'error');
+                }
+            } catch (err) {
+                showToast(`❌ Lỗi: ${err.message}`, 'error');
+            }
+        }
+
+        // Kích hoạt SOS Panic Button
+        async function triggerSosPanic() {
+            if (!confirm('🚨 BẠN CÓ CHẮC CHẮN MUỐN KÍCH HOẠT BÁO ĐỘNG SOS TOÀN HỆ THỐNG? Còi và Bơm sẽ bật ngay tức khắc!')) {
+                return;
+            }
+            showToast('🚨 ĐANG KÍCH HOẠT BÁO ĐỘNG SOS KHẨN CẤP...', 'error');
+            try {
+                const res = await fetch('/api/sos', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast('🆘 ĐÃ KÍCH HOẠT BÁO ĐỘNG SOS THÀNH CÔNG!', 'success');
+                    fetchStatus();
+                } else {
+                    showToast(`❌ ${data.message}`, 'error');
+                }
+            } catch (err) {
+                showToast(`❌ Lỗi: ${err.message}`, 'error');
+            }
+        }
+
         // Điều khiển Relay
         async function toggleRelay() {
             const current = currentSystemState?.sensor?.relay_state || 'OFF';
             const next = current === 'ON' ? 'OFF' : 'ON';
             await sendControl({ relay: next, mode: 'MANUAL' });
+            showToast(`Đã chuyển Bơm sang: ${next}`, 'info');
         }
 
         // Điều khiển Buzzer
@@ -850,11 +1334,13 @@
             const current = currentSystemState?.sensor?.buzzer_state || 'OFF';
             const next = current === 'ON' ? 'OFF' : 'ON';
             await sendControl({ buzzer: next, mode: 'MANUAL' });
+            showToast(`Đã chuyển Còi sang: ${next}`, 'info');
         }
 
         // Tắt còi tạm thời & reset về chế độ tự động an toàn
         async function manualMuteBuzzer() {
             await sendControl({ buzzer: 'OFF', alert: 'OFF', relay: 'OFF', mode: 'AUTO' });
+            showToast('🛡️ Đã dập tắt báo động & chuyển về chế độ Tự Động!', 'success');
         }
 
         // Chuyển đổi AUTO / MANUAL
@@ -862,14 +1348,7 @@
             const current = currentSystemState?.sensor?.mode || 'AUTO';
             const next = current === 'AUTO' ? 'MANUAL' : 'AUTO';
             await sendControl({ mode: next });
-        }
-
-        // Test Báo Động Khẩn Cấp (3s)
-        async function triggerTestAlarm() {
-            await sendControl({ relay: 'ON', buzzer: 'ON', mode: 'MANUAL' });
-            setTimeout(async () => {
-                await sendControl({ relay: 'OFF', buzzer: 'OFF', mode: 'AUTO' });
-            }, 3000);
+            showToast(`Chế độ hệ thống: ${next}`, 'info');
         }
 
         async function sendControl(payload) {
@@ -881,11 +1360,12 @@
                 });
                 fetchStatus();
             } catch (err) {
-                alert('Lỗi gửi lệnh điều khiển: ' + err.message);
+                showToast('Lỗi gửi lệnh điều khiển: ' + err.message, 'error');
             }
         }
 
-        // Định kỳ lấy dữ liệu mỗi 1 giây
+        // Khởi tạo chạy nền
+        loadTelegramConfig();
         setInterval(fetchStatus, 1200);
         fetchStatus();
     </script>

@@ -19,7 +19,7 @@
 const char* WIFI_SSID     = "Thanh Le";
 const char* WIFI_PASSWORD = "0988314531";
 
-const char* mqtt_server   = "192.168.1.6"; // IP máy tính của bạn
+const char* mqtt_server   = "192.168.1.4"; // IP máy tính của bạn
 const int   mqtt_port     = 1883;
 
 // Topics MQTT
@@ -82,6 +82,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
       if (control_mode == "AUTO") {
         if (status == "FIRE_ALERT" || smoke_raw >= 1400 || temp >= 50.0) {
+          Serial.printf("🔥 Node 2: Nhận BÁO ĐỘNG từ Node 1! (Temp: %.1f°C | Smoke: %d)\n", temp, smoke_raw);
           sensor_danger = true;
           last_danger_time = millis();
         } else {
@@ -98,6 +99,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       bool fire = doc["fire_detected"] | false;
       const char* action = doc["action"] | "";
       if (fire || String(action) == "TRIGGER_ALARM") {
+        Serial.println("👁️ Node 2: Nhận BÁO ĐỘNG LỬA từ AI Camera!");
         ai_danger = true;
         last_danger_time = millis();
       } else {
@@ -110,20 +112,23 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (String(topic) == TOPIC_CONTROL) {
     StaticJsonDocument<200> doc;
     if (!deserializeJson(doc, message)) {
+      Serial.printf("📩 Node 2 nhận lệnh điều khiển: %s\n", message.c_str());
       if (doc.containsKey("mode")) {
         control_mode = String(doc["mode"].as<const char*>());
       }
       if (doc.containsKey("buzzer") || doc.containsKey("relay") || doc.containsKey("alert")) {
         String cmd = doc["buzzer"] | doc["relay"] | doc["alert"] | "OFF";
         if (cmd == "ON") {
+          Serial.println("🚨 KÍCH HOẠT BÁO ĐỘNG TỪ LỆNH WEB / SOS!");
           last_danger_time = millis();
           alert_active = true;
         } else {
-          // TẮT CÒI NGAY LẬP TỨC KHI CÓ LỆNH OFF
+          Serial.println("🛡️ TẮT BÁO ĐỘNG TỪ LỆNH WEB / RESET!");
           sensor_danger = false;
           ai_danger = false;
           alert_active = false;
           last_danger_time = 0;
+          noTone(PIN_BUZZER);
           digitalWrite(PIN_BUZZER, LOW);
           digitalWrite(PIN_RELAY, HIGH);
         }

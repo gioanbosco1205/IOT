@@ -19,7 +19,7 @@
 const char* WIFI_SSID     = "Thanh Le";
 const char* WIFI_PASSWORD = "0988314531";
 
-const char* mqtt_server   = "192.168.1.6"; // IP máy tính của bạn
+const char* mqtt_server   = "192.168.1.4"; // IP máy tính của bạn
 const int   mqtt_port     = 1883;
 const char* mqtt_topic    = "fire_alarm/sensor_data";
 
