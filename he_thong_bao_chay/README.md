@@ -69,8 +69,8 @@ he_thong_bao_chay/
    python app.py
    ```
 3. Truy cập giao diện giám sát:
-   - **Dashboard thời gian thực:** `http://localhost:5000`
-   - **Lịch sử sự kiện:** `http://localhost:5000/history`
+   - **Dashboard thời gian thực:** `http://localhost:5001`
+   - **Lịch sử sự kiện:** `http://localhost:5001/history`
 
 ---
 

@@ -570,7 +570,7 @@
                             <div class="metric-bar-fill" id="barSmoke" style="width: 15%; background: #30d158;"></div>
                         </div>
                         <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 6px;">
-                            Ngưỡng an toàn: <b id="lblSmokeThresh">600</b> ADC
+                            Ngưỡng an toàn: <b id="lblSmokeThresh">1400</b> ADC
                         </div>
                     </div>
                 </div>
@@ -777,16 +777,19 @@
                 aiPill.style.color = '#30d158';
             }
 
-            // 5. Banner Cảnh Báo Cháy Khẩn Cấp
+            // 5. Banner Cảnh Báo Cháy Khẩn Cấp & Âm thanh
             const dangerBanner = document.getElementById('dangerBanner');
-            if (s.is_fire || ai.fire_detected) {
+            const isActualAlarm = s.is_fire || (s.buzzer_state === 'ON');
+            if (isActualAlarm || (ai.fire_detected && ai.confidence >= 0.70)) {
                 dangerBanner.style.display = 'flex';
                 let reason = [];
                 if (s.temperature >= s.temp_threshold) reason.push(`Nhiệt độ cao (${tempVal}°C)`);
                 if (s.smoke >= s.smoke_threshold) reason.push(`Khói vượt ngưỡng (${s.smoke})`);
                 if (ai.fire_detected) reason.push(`Camera AI phát hiện ${aiLabel === 'SMOKE' ? 'khói' : 'ngọn lửa'}`);
                 document.getElementById('dangerReason').textContent = reason.join(' + ');
-                playAlarmBeep();
+                if (isActualAlarm) {
+                    playAlarmBeep();
+                }
             } else {
                 dangerBanner.style.display = 'none';
             }
@@ -849,9 +852,9 @@
             await sendControl({ buzzer: next, mode: 'MANUAL' });
         }
 
-        // Tắt còi tạm thời
+        // Tắt còi tạm thời & reset về chế độ tự động an toàn
         async function manualMuteBuzzer() {
-            await sendControl({ buzzer: 'OFF', mode: 'MANUAL' });
+            await sendControl({ buzzer: 'OFF', alert: 'OFF', relay: 'OFF', mode: 'AUTO' });
         }
 
         // Chuyển đổi AUTO / MANUAL

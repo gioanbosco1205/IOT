@@ -3,6 +3,7 @@
  * 🚀 NODE 1: TRẠM CẢM BIẾN HIỆN TRƯỜNG (ESP32-C3 #1)
  * Thiết bị: Cảm biến nhiệt DS18B20 (GPIO 2) + Cảm biến khói MQ-2 (GPIO 0)
  * Giao thức: Wi-Fi STA + MQTT Pub topic "fire_alarm/sensor_data"
+ * Tính năng: Tự động kết nối lại WiFi & MQTT liên tục (Auto Reconnect)
  * ============================================================================
  */
 
@@ -39,20 +40,38 @@ WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
 unsigned long last_read = 0;
-const unsigned long READ_INTERVAL = 1000; // Chu kỳ đọc 1 giây (đủ chuẩn 750ms chuyển đổi cho DS18B20)
+const unsigned long READ_INTERVAL = 1000; // Chu kỳ đọc 1 giây
 
-float last_valid_temp = 30.0; // Lưu nhiệt độ gần nhất để không bị rớt về 0
+float last_valid_temp = 29.5; // Lưu nhiệt độ gần nhất để không bị rớt về 0
 
-void reconnectMQTT() {
-  if (WiFi.status() != WL_CONNECTED) return;
-  if (!mqttClient.connected()) {
-    Serial.print("📡 Đang kết nối MQTT Broker...");
-    String clientId = "ESP32_Node1_Sensor_" + String(random(0xffff), HEX);
-    if (mqttClient.connect(clientId.c_str())) {
-      Serial.println(" KẾT NỐI THÀNH CÔNG! ✅");
-    } else {
-      Serial.printf(" Thất bại, rc=%d (Sẽ thử lại sau)\n", mqttClient.state());
+void checkNetwork() {
+  // 1. Tự động kết nối lại WiFi nếu rớt mạng
+  if (WiFi.status() != WL_CONNECTED) {
+    static unsigned long last_wifi_retry = 0;
+    if (millis() - last_wifi_retry > 5000) {
+      last_wifi_retry = millis();
+      Serial.println("📶 Đang kết nối lại WiFi...");
+      WiFi.disconnect();
+      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     }
+    return;
+  }
+
+  // 2. Tự động kết nối lại MQTT nếu mất kết nối
+  if (!mqttClient.connected()) {
+    static unsigned long last_mqtt_retry = 0;
+    if (millis() - last_mqtt_retry > 3000) {
+      last_mqtt_retry = millis();
+      Serial.print("📡 Node 1 đang kết nối lại MQTT Broker (192.168.1.6:1883)...");
+      String clientId = "ESP32_Node1_Sensor_" + String(random(0xffff), HEX);
+      if (mqttClient.connect(clientId.c_str())) {
+        Serial.println(" THÀNH CÔNG! ✅");
+      } else {
+        Serial.printf(" Thất bại, rc=%d (Sẽ thử lại sau 3s)\n", mqttClient.state());
+      }
+    }
+  } else {
+    mqttClient.loop();
   }
 }
 
@@ -69,7 +88,7 @@ void setup() {
   // 1. Khởi tạo cảm biến nhiệt độ DS18B20
   pinMode(PIN_DS18B20, INPUT_PULLUP);
   ds18b20.begin();
-  ds18b20.setWaitForConversion(true); // Bắt buộc đợi DS18B20 chuyển đổi ADC xong
+  ds18b20.setWaitForConversion(true); // Đợi DS18B20 chuyển đổi ADC xong
   int count = ds18b20.getDeviceCount();
   Serial.printf("🌡️ DS18B20: Tìm thấy %d cảm biến trên GPIO %d\n", count, PIN_DS18B20);
 
@@ -95,7 +114,7 @@ void setup() {
     Serial.print("📡 IP ESP32 Node 1: ");
     Serial.println(WiFi.localIP());
   } else {
-    Serial.println("\n⚠️ Chưa có Wi-Fi (Tiếp tục đọc cảm biến độc lập)");
+    Serial.println("\n⚠️ Chưa có Wi-Fi (Sẽ tự động kết nối lại ngầm)");
   }
 
   // 4. Cấu hình MQTT Broker
@@ -104,10 +123,7 @@ void setup() {
 }
 
 void loop() {
-  if (WiFi.status() == WL_CONNECTED) {
-    if (!mqttClient.connected()) reconnectMQTT();
-    else mqttClient.loop();
-  }
+  checkNetwork();
 
   unsigned long now = millis();
   if (now - last_read >= READ_INTERVAL) {
@@ -135,9 +151,9 @@ void loop() {
     // 3. Đánh giá trạng thái
     String status = "NORMAL";
     if (temp >= TEMP_THRESHOLD_ALERT || smoke_raw >= GAS_THRESHOLD_ALERT) {
-      status = "FIRE_ALERT"; // VƯỢT NGƯỠNG -> BÁO ĐỘNG HÚ CÒI!
+      status = "FIRE_ALERT"; // VƯỢT NGƯỠNG -> BÁO ĐỘNG!
     } else {
-      status = "NORMAL";     // DƯỚI NGƯỠNG -> TẮT CÒI!
+      status = "NORMAL";     // DƯỚI NGƯỠNG -> AN TOÀN!
     }
 
     // 4. In ra Serial Monitor

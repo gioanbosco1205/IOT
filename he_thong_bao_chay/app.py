@@ -26,7 +26,7 @@ CORS(app)
 DB_PATH = os.path.join(os.path.dirname(__file__), "fire_history.db")
 
 # MQTT Settings
-MQTT_BROKER = os.getenv("MQTT_BROKER", "broker.emqx.io")
+MQTT_BROKER = os.getenv("MQTT_BROKER", "127.0.0.1")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
 TOPIC_SENSOR_DATA = "fire_alarm/sensor_data"
 TOPIC_CONTROL = "fire_alarm/control"
@@ -36,7 +36,7 @@ TOPIC_AI_ALERT = "fire_alarm/ai_alert"
 latest_data = {
     "temperature": 0.0,
     "smoke": 0,
-    "smoke_threshold": 600,
+    "smoke_threshold": 1400,
     "temp_threshold": 50.0,
     "is_fire": False,
     "relay_state": "OFF",
@@ -100,14 +100,19 @@ init_db()
 # ==========================================
 # 3. MQTT CLIENT BACKEND
 # ==========================================
-mqtt_client = mqtt.Client(client_id="Flask_FireAlarm_Backend_" + str(int(time.time())))
+try:
+    # paho-mqtt v2.x
+    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id="Flask_FireAlarm_Backend_" + str(int(time.time())))
+except (AttributeError, TypeError):
+    # paho-mqtt v1.x fallback
+    mqtt_client = mqtt.Client(client_id="Flask_FireAlarm_Backend_" + str(int(time.time())))
 
 def on_mqtt_connect(client, userdata, flags, rc):
     if rc == 0:
         print(f"[MQTT] Đã kết nối thành công tới Broker: {MQTT_BROKER}:{MQTT_PORT}")
         with data_lock:
             latest_data["mqtt_connected"] = True
-        client.subscribe(TOPIC_SENSOR_DATA)
+        client.subscribe("fire_alarm/#")
     else:
         print(f"[MQTT] Lỗi kết nối Broker, mã lỗi: {rc}")
 
@@ -123,16 +128,32 @@ def on_mqtt_message(client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode("utf-8"))
         with data_lock:
-            latest_data["temperature"] = float(payload.get("temperature", 0.0))
-            latest_data["smoke"] = int(payload.get("smoke", 0))
-            latest_data["smoke_threshold"] = int(payload.get("smoke_threshold", 600))
-            latest_data["temp_threshold"] = float(payload.get("temp_threshold", 50.0))
-            latest_data["is_fire"] = bool(payload.get("is_fire", False))
-            latest_data["relay_state"] = str(payload.get("relay_state", "OFF"))
-            latest_data["buzzer_state"] = str(payload.get("buzzer_state", "OFF"))
-            latest_data["ai_alert"] = bool(payload.get("ai_alert", False))
-            latest_data["mode"] = str(payload.get("mode", "AUTO"))
-            latest_data["uptime"] = int(payload.get("uptime", 0))
+            if "temperature" in payload:
+                latest_data["temperature"] = float(payload.get("temperature", 0.0))
+            if "smoke" in payload:
+                latest_data["smoke"] = int(payload.get("smoke", 0))
+            if "smoke_threshold" in payload:
+                latest_data["smoke_threshold"] = int(payload.get("smoke_threshold", 600))
+            if "temp_threshold" in payload:
+                latest_data["temp_threshold"] = float(payload.get("temp_threshold", 50.0))
+            
+            # Kiểm tra trạng thái cháy từ các trường khác nhau (is_fire hoặc status)
+            if "is_fire" in payload:
+                latest_data["is_fire"] = bool(payload.get("is_fire", False))
+            elif "status" in payload:
+                latest_data["is_fire"] = (payload.get("status") == "FIRE_ALERT")
+
+            if "relay_state" in payload:
+                latest_data["relay_state"] = str(payload.get("relay_state", "OFF"))
+            if "buzzer_state" in payload:
+                latest_data["buzzer_state"] = str(payload.get("buzzer_state", "OFF"))
+            if "ai_alert" in payload:
+                latest_data["ai_alert"] = bool(payload.get("ai_alert", False))
+            if "mode" in payload:
+                latest_data["mode"] = str(payload.get("mode", "AUTO"))
+            if "uptime" in payload:
+                latest_data["uptime"] = int(payload.get("uptime", 0))
+            
             latest_data["last_seen"] = datetime.datetime.now().strftime("%H:%M:%S")
 
             current_fire = latest_data["is_fire"]
@@ -180,12 +201,12 @@ mqtt_thread.start()
 # 4. THỊ GIÁC MÁY TÍNH: NHẬN DIỆN LỬA & KHÓI (AI CAMERA - YOLOV8 HUGGING FACE)
 # ==========================================
 class FireDetector:
-    def __init__(self, model_id="rabahdev/fire-smoke-yolov8n", conf_threshold=0.35):
+    def __init__(self, model_id="rabahdev/fire-smoke-yolov8n", conf_threshold=0.65):
         self.conf_threshold = conf_threshold
         self.model = None
         self.use_yolo = False
         self.consecutive_frames = 0
-        self.alert_threshold_frames = 2
+        self.alert_threshold_frames = 4
         self.last_ai_publish_time = 0
         self.model_name = model_id
         
@@ -230,13 +251,19 @@ class FireDetector:
                         conf = float(box.conf[0].item())
                         cls_name = self.model.names.get(cls_id, f"class_{cls_id}").lower()
 
-                        if any(k in cls_name for k in ["fire", "smoke", "flame"]):
+                        # Ưu tiên nhận diện ngọn lửa FIRE
+                        if "fire" in cls_name or "flame" in cls_name:
                             x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-                            label_type = "FIRE" if ("fire" in cls_name or "flame" in cls_name) else "SMOKE"
-                            boxes_info.append((x1, y1, x2, y2, label_type, conf))
+                            boxes_info.append((x1, y1, x2, y2, "FIRE", conf))
                             if conf > max_conf:
                                 max_conf = conf
-                                detected_label = label_type
+                                detected_label = "FIRE"
+                        elif "smoke" in cls_name and conf >= 0.88: # Chỉ nhận khói khi độ tin cậy cực cao
+                            x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+                            boxes_info.append((x1, y1, x2, y2, "SMOKE", conf))
+                            if conf > max_conf and detected_label != "FIRE":
+                                max_conf = conf
+                                detected_label = "SMOKE"
             except Exception as e:
                 print(f"[YOLO Inference Error] {e}")
 
@@ -261,13 +288,21 @@ class FireDetector:
                             max_conf = conf
                             detected_label = "FIRE"
 
-        if len(boxes_info) > 0:
+        # Đánh giá phát hiện lửa với độ trễ an toàn 3 giây
+        now_time = time.time()
+        if len(boxes_info) > 0 and detected_label == "FIRE":
             self.consecutive_frames += 1
             if self.consecutive_frames >= self.alert_threshold_frames:
+                self.last_fire_detected_time = now_time
                 fire_detected = True
         else:
             self.consecutive_frames = max(0, self.consecutive_frames - 1)
-            fire_detected = False
+            # Duy trì báo động thêm 3 giây sau khi ngọn lửa tắt
+            if hasattr(self, 'last_fire_detected_time') and (now_time - self.last_fire_detected_time < 3.0):
+                fire_detected = True
+                detected_label = "FIRE"
+            else:
+                fire_detected = False
 
         # Vẽ bounding box lên khung hình
         for (x1, y1, x2, y2, label_type, conf) in boxes_info:
@@ -292,32 +327,77 @@ class FireDetector:
         cv2.putText(frame, time.strftime("%Y-%m-%d %H:%M:%S"), (w - 180, 24),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 200, 200), 1)
 
-        # Gửi cảnh báo MQTT nếu trạng thái AI thay đổi
+        # Gửi cảnh báo MQTT khi AI phát hiện lửa hoặc khi đám cháy đã được dập tắt
         now_time = time.time()
-        if fire_detected and (now_time - self.last_ai_publish_time > 2.0):
-            self.last_ai_publish_time = now_time
-            payload = json.dumps({
-                "event": f"{detected_label}_DETECTED",
-                "label": detected_label,
-                "confidence": round(max_conf, 2),
-                "model": self.model_name,
-                "action": "TRIGGER_ALARM",
-                "timestamp": time.strftime("%H:%M:%S")
-            })
-            mqtt_client.publish(TOPIC_AI_ALERT, payload)
+        if fire_detected and detected_label == "FIRE":
+            if (now_time - self.last_ai_publish_time > 1.5) or not getattr(self, 'was_fire_active', False):
+                self.last_ai_publish_time = now_time
+                self.was_fire_active = True
+                payload = json.dumps({
+                    "event": "FIRE_DETECTED",
+                    "fire_detected": True,
+                    "label": "FIRE",
+                    "confidence": round(max_conf, 2),
+                    "model": self.model_name,
+                    "action": "TRIGGER_ALARM",
+                    "timestamp": time.strftime("%H:%M:%S")
+                })
+                mqtt_client.publish(TOPIC_AI_ALERT, payload)
+                print(f"🔥 [AI Fire Alert] Phát hiện ngọn lửa ({int(max_conf * 100)}%) -> Báo động!")
+        else:
+            # Khi ngọn lửa biến mất sau 3 giây -> Bắn tin báo hết lửa để ESP32 tự động tắt còi
+            if getattr(self, 'was_fire_active', False):
+                self.was_fire_active = False
+                payload = json.dumps({
+                    "event": "FIRE_CLEARED",
+                    "fire_detected": False,
+                    "label": "NONE",
+                    "confidence": 0.0,
+                    "model": self.model_name,
+                    "action": "STOP_ALARM",
+                    "timestamp": time.strftime("%H:%M:%S")
+                })
+                mqtt_client.publish(TOPIC_AI_ALERT, payload)
+                print("✅ [AI Fire Clear] Ngọn lửa đã tắt -> Tự động dừng báo động!")
 
         return frame, fire_detected, round(max_conf, 2), detected_label
 
-detector = FireDetector(model_id="rabahdev/fire-smoke-yolov8n", conf_threshold=0.35)
+detector = FireDetector(model_id="rabahdev/fire-smoke-yolov8n", conf_threshold=0.65)
 
-def generate_video_stream():
-    # Thử mở camera mặc định (0)
-    cap = cv2.VideoCapture(0)
+# ==========================================
+# 4.1. LUỒNG CAMERA SINGLETON BACKGROUND WORKER
+# ==========================================
+current_jpeg_frame = None
+frame_event = threading.Event()
+
+def camera_capture_worker():
+    global current_jpeg_frame
+    cap = None
     
-    # Nếu không có camera, tạo video mô phỏng HUD
+    # Quét mở webcam trên macOS AVFoundation
+    for idx in [0, 1]:
+        try:
+            temp_cap = cv2.VideoCapture(idx, cv2.CAP_AVFOUNDATION)
+            if temp_cap.isOpened():
+                ret, test_f = temp_cap.read()
+                if ret and test_f is not None and test_f.size > 0:
+                    cap = temp_cap
+                    print(f"[Camera] ✅ Đã mở Webcam thành công trên Camera Index {idx}!")
+                    break
+                else:
+                    temp_cap.release()
+        except Exception:
+            pass
+
+    if cap is None:
+        print("[Camera] ⚠️ Thử mở Camera mặc định...")
+        cap = cv2.VideoCapture(0)
+
     is_camera_open = cap.isOpened()
-    if not is_camera_open:
-        print("[Camera] Không tìm thấy Webcam vật lý! Đang chuyển sang chế độ mô phỏng AI Stream.")
+    if is_camera_open:
+        # Cấu hình độ phân giải tối ưu 640x480
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     frame_count = 0
     fps_start = time.time()
@@ -325,20 +405,16 @@ def generate_video_stream():
     while True:
         if is_camera_open:
             success, frame = cap.read()
-            if not success:
-                # Đọc lại hoặc giả lập
-                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            if not success or frame is None:
+                time.sleep(0.03)
                 continue
         else:
-            # Tạo frame đồ họa giả lập Radar AI Camera
+            # Tạo frame đồ họa radar AI mô phỏng
             frame = np.zeros((480, 640, 3), dtype=np.uint8)
-            # Tạo lưới HUD
             for y in range(0, 480, 40):
                 cv2.line(frame, (0, y), (640, y), (30, 30, 30), 1)
             for x in range(0, 640, 40):
                 cv2.line(frame, (x, 0), (x, 480), (30, 30, 30), 1)
-            
-            # Vòng quét radar
             cx, cy = 320, 240
             cv2.circle(frame, (cx, cy), 150, (0, 100, 0), 1)
             cv2.circle(frame, (cx, cy), 80, (0, 100, 0), 1)
@@ -363,14 +439,26 @@ def generate_video_stream():
                 ai_state["fps"] = round(15 / elapsed, 1) if elapsed > 0 else 30
                 fps_start = time.time()
 
-        # Nén ảnh thành JPEG
         ret, buffer = cv2.imencode('.jpg', processed_frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
-        if not ret:
-            continue
-        
-        frame_bytes = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        if ret:
+            with camera_lock:
+                current_jpeg_frame = buffer.tobytes()
+            frame_event.set()
+        time.sleep(0.02)
+
+# Khởi chạy luồng camera singleton
+cam_thread = threading.Thread(target=camera_capture_worker, daemon=True)
+cam_thread.start()
+
+def generate_video_stream():
+    while True:
+        frame_event.wait(timeout=0.5)
+        with camera_lock:
+            frame_bytes = current_jpeg_frame
+        if frame_bytes is not None:
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        time.sleep(0.03)
 
 # ==========================================
 # 5. CÁC ĐƯỜNG DẪN WEB & API (FLASK ROUTES)
@@ -410,6 +498,19 @@ def post_control():
             payload["buzzer"] = req["buzzer"].upper()
         if "mode" in req:
             payload["mode"] = req["mode"].upper()
+        if "alert" in req:
+            payload["alert"] = req["alert"].upper()
+
+        with data_lock:
+            if "relay" in payload:
+                latest_data["relay_state"] = payload["relay"]
+            if "buzzer" in payload:
+                latest_data["buzzer_state"] = payload["buzzer"]
+            if "mode" in payload:
+                latest_data["mode"] = payload["mode"]
+            if payload.get("buzzer") == "OFF" or payload.get("alert") == "OFF":
+                latest_data["is_fire"] = False
+                latest_data["buzzer_state"] = "OFF"
 
         mqtt_client.publish(TOPIC_CONTROL, json.dumps(payload))
 
@@ -456,7 +557,7 @@ def clear_history():
 # 6. RUN FLASK SERVER
 # ==========================================
 if __name__ == '__main__':
-    port = int(os.getenv("PORT", 5000))
+    port = int(os.getenv("PORT", 5001))
     print(f"\n=======================================================")
     print(f"🔥 IOT FIRE ALARM SERVER IS RUNNING ON http://127.0.0.1:{port}")
     print(f"📡 MQTT Broker: {MQTT_BROKER}:{MQTT_PORT}")
