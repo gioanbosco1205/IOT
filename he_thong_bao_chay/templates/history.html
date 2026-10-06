@@ -207,6 +207,11 @@
                 <span style="font-weight: 700; color: #fff;">{{ user.fullname or user.username or 'Admin' }}</span>
                 <span style="font-size: 0.72rem; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius: 4px; color: var(--accent-blue); font-weight: 800;">{{ user.role or 'ADMIN' }}</span>
             </div>
+            {% if user.role == 'ADMIN' %}
+            <a href="/users" class="nav-btn" style="border-color: rgba(10, 132, 255, 0.4);">
+                <i class="fa-solid fa-users-gear" style="color: var(--accent-blue);"></i> Quản Lý User
+            </a>
+            {% endif %}
             <a href="/" class="nav-btn">
                 <i class="fa-solid fa-gauge-high"></i> Dashboard
             </a>

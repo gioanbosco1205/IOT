@@ -95,9 +95,91 @@ ai_state = {
     "active": True
 }
 
+# Giám sát sức khỏe thiết bị thời gian thực (Device Heartbeat & Health Registry)
+devices_health = {
+    "node_1_sensor": {
+        "id": "ESP32-C3-01",
+        "name": "Node 1 (ESP32 Cảm Biến)",
+        "type": "CẢM BIẾN",
+        "last_seen_ts": 0,
+        "last_seen_str": "Chưa kết nối",
+        "is_online": False,
+        "alerted_offline": False
+    },
+    "node_2_actuator": {
+        "id": "ESP32-C3-02",
+        "name": "Node 2 (ESP32 Còi & Bơm)",
+        "type": "CHẤP HÀNH",
+        "last_seen_ts": 0,
+        "last_seen_str": "Chưa kết nối",
+        "is_online": False,
+        "alerted_offline": False
+    },
+    "ai_camera": {
+        "id": "AI-VISION-01",
+        "name": "AI Camera Vision Server",
+        "type": "AI CAMERA",
+        "last_seen_ts": time.time(),
+        "last_seen_str": datetime.datetime.now().strftime("%H:%M:%S"),
+        "is_online": True,
+        "alerted_offline": False
+    }
+}
+
 # Khóa luồng (Thread Lock)
 data_lock = threading.Lock()
 camera_lock = threading.Lock()
+device_lock = threading.Lock()
+
+def device_watchdog_worker():
+    """Luồng chạy nền kiểm tra Heartbeat và phát hiện thiết bị mất kết nối (Device Offline Watchdog)"""
+    time.sleep(5) # Đợi hệ thống khởi động ổn định 5s
+    while True:
+        now = time.time()
+        with device_lock:
+            for dev_key, dev in devices_health.items():
+                if dev_key == "ai_camera":
+                    dev["last_seen_ts"] = now
+                    dev["last_seen_str"] = datetime.datetime.now().strftime("%H:%M:%S")
+                    dev["is_online"] = True
+                    continue
+
+                # Nếu thiết bị từng gửi tin nhưng quá 15 giây không có Heartbeat mới
+                if dev["last_seen_ts"] > 0 and (now - dev["last_seen_ts"] > 15.0):
+                    if dev["is_online"] or not dev["alerted_offline"]:
+                        dev["is_online"] = False
+                        dev["alerted_offline"] = True
+                        offline_seconds = int(now - dev["last_seen_ts"])
+
+                        print(f"⚠️ [Watchdog Alert] Thiết bị '{dev['name']}' ({dev['id']}) đã MẤT KẾT NỐI ({offline_seconds}s)!")
+
+                        # Gửi cảnh báo khẩn cấp qua Telegram cho Admin
+                        send_telegram_alert(
+                            title="⚠️ CẢNH BÁO: THIẾT BỊ MẤT KẾT NỐI (DEVICE OFFLINE)!",
+                            message_text=(
+                                f"📍 <b>Thiết bị:</b> {dev['name']}\n"
+                                f"🆔 <b>Mã:</b> <code>{dev['id']}</code>\n"
+                                f"⏰ <b>Lần cuối thấy:</b> {dev['last_seen_str']}\n"
+                                f"⏱️ <b>Mất tín hiệu:</b> {offline_seconds} giây\n\n"
+                                f"🚨 <b>Mức độ:</b> <b>NGUY HIỂM</b> (Hệ thống PCCC không nhận được dữ liệu từ trạm này!)"
+                            ),
+                            force=True
+                        )
+
+                        # Ghi nhật ký vào SQLite
+                        log_event(
+                            event_type="THIẾT BỊ MẤT KẾT NỐI",
+                            temp=latest_data["temperature"],
+                            smoke=latest_data["smoke"],
+                            source=f"{dev['id']} OFFLINE",
+                            details=f"{dev['name']} mất tín hiệu {offline_seconds}s"
+                        )
+
+        time.sleep(2.5)
+
+# Khởi chạy luồng Watchdog giám sát thiết bị
+watchdog_thread = threading.Thread(target=device_watchdog_worker, daemon=True)
+watchdog_thread.start()
 
 def send_telegram_alert(title, message_text, photo_bytes=None, force=False):
     """Gửi tin nhắn + ảnh hiện trường qua Telegram Bot (bất đồng bộ)"""
@@ -242,7 +324,55 @@ last_logged_alarm = False
 def on_mqtt_message(client, userdata, msg):
     global last_logged_alarm
     try:
+        topic = msg.topic
         payload = json.loads(msg.payload.decode("utf-8"))
+        now_ts = time.time()
+        now_time_str = datetime.datetime.now().strftime("%H:%M:%S")
+
+        # CẬP NHẬT HEARTBEAT TỪNG THIẾT BỊ
+        with device_lock:
+            if topic == TOPIC_SENSOR_DATA or "temperature" in payload or "smoke" in payload:
+                dev = devices_health["node_1_sensor"]
+                dev["last_seen_ts"] = now_ts
+                dev["last_seen_str"] = now_time_str
+                if not dev["is_online"] or dev["alerted_offline"]:
+                    dev["is_online"] = True
+                    if dev["alerted_offline"]:
+                        dev["alerted_offline"] = False
+                        print("✅ [Watchdog] Node 1 (Cảm biến) ĐÃ KẾT NỐI LẠI THÀNH CÔNG!")
+                        send_telegram_alert(
+                            title="✅ THIẾT BỊ ĐÃ KẾT NỐI LẠI (ONLINE)!",
+                            message_text=(
+                                f"📍 <b>Thiết bị:</b> {dev['name']}\n"
+                                f"🆔 <b>Mã:</b> <code>{dev['id']}</code>\n"
+                                f"⏰ <b>Thời gian phục hồi:</b> {now_time_str}\n"
+                                f"🟢 <b>Trạng thái:</b> Đang truyền dữ liệu cảm biến bình thường!"
+                            ),
+                            force=True
+                        )
+                        log_event("THIẾT BỊ KẾT NỐI LẠI", 0, 0, dev["id"], f"{dev['name']} đã Online trở lại")
+
+            elif topic == "fire_alarm/actuator_status" or "buzzer_state" in payload or "relay_state" in payload:
+                dev = devices_health["node_2_actuator"]
+                dev["last_seen_ts"] = now_ts
+                dev["last_seen_str"] = now_time_str
+                if not dev["is_online"] or dev["alerted_offline"]:
+                    dev["is_online"] = True
+                    if dev["alerted_offline"]:
+                        dev["alerted_offline"] = False
+                        print("✅ [Watchdog] Node 2 (Còi & Relay) ĐÃ KẾT NỐI LẠI THÀNH CÔNG!")
+                        send_telegram_alert(
+                            title="✅ THIẾT BỊ ĐÃ KẾT NỐI LẠI (ONLINE)!",
+                            message_text=(
+                                f"📍 <b>Thiết bị:</b> {dev['name']}\n"
+                                f"🆔 <b>Mã:</b> <code>{dev['id']}</code>\n"
+                                f"⏰ <b>Thời gian phục hồi:</b> {now_time_str}\n"
+                                f"🟢 <b>Trạng thái:</b> Sẵn sàng nhận lệnh báo động & điều khiển!"
+                            ),
+                            force=True
+                        )
+                        log_event("THIẾT BỊ KẾT NỐI LẠI", 0, 0, dev["id"], f"{dev['name']} đã Online trở lại")
+
         with data_lock:
             if "temperature" in payload:
                 latest_data["temperature"] = float(payload.get("temperature", 0.0))
@@ -270,8 +400,7 @@ def on_mqtt_message(client, userdata, msg):
             if "uptime" in payload:
                 latest_data["uptime"] = int(payload.get("uptime", 0))
             
-            latest_data["last_seen"] = datetime.datetime.now().strftime("%H:%M:%S")
-
+            latest_data["last_seen"] = now_time_str
             current_fire = latest_data["is_fire"]
 
         # Tự động ghi nhật ký khi có thay đổi trạng thái cháy
@@ -726,6 +855,91 @@ def api_me():
         return jsonify({"status": "success", "user": session['user']})
     return jsonify({"status": "error", "message": "Chưa đăng nhập"}), 401
 
+@app.route('/users')
+@login_required
+def users_page():
+    curr_user = session.get('user', {})
+    if curr_user.get('role') != 'ADMIN':
+        return redirect(url_for('index'))
+    return render_template('users.html', user=curr_user)
+
+@app.route('/api/admin/users', methods=['GET'])
+@login_required
+def api_get_users():
+    if session.get('user', {}).get('role') != 'ADMIN':
+        return jsonify({"status": "error", "message": "Chỉ Quản trị viên mới có quyền xem danh sách người dùng!"}), 403
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, username, fullname, role, telegram_chat_id, created_at FROM users ORDER BY id ASC")
+        rows = cursor.fetchall()
+        user_list = [dict(row) for row in rows]
+        conn.close()
+        return jsonify({"status": "success", "users": user_list})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/admin/users/role', methods=['POST'])
+@login_required
+def api_update_user_role():
+    if session.get('user', {}).get('role') != 'ADMIN':
+        return jsonify({"status": "error", "message": "Chỉ Quản trị viên mới có quyền đổi vai trò!"}), 403
+    try:
+        req = request.json or {}
+        user_id = req.get("user_id")
+        new_role = req.get("role", "").upper()
+        if new_role not in ["ADMIN", "OPERATOR"]:
+            return jsonify({"status": "error", "message": "Vai trò không hợp lệ!"}), 400
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET role = ? WHERE id = ?", (new_role, user_id))
+        conn.commit()
+        conn.close()
+
+        log_event(
+            event_type="THAY ĐỔI PHÂN QUYỀN",
+            temp=latest_data["temperature"],
+            smoke=latest_data["smoke"],
+            source=f"ADMIN: {session.get('user', {}).get('username')}",
+            details=f"Cập nhật User ID {user_id} sang quyền '{new_role}'"
+        )
+        return jsonify({"status": "success", "message": "Đã cập nhật phân quyền thành công!"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+@login_required
+def api_delete_user(user_id):
+    if session.get('user', {}).get('role') != 'ADMIN':
+        return jsonify({"status": "error", "message": "Chỉ Quản trị viên mới có quyền xóa tài khoản!"}), 403
+    if session.get('user', {}).get('id') == user_id:
+        return jsonify({"status": "error", "message": "Không thể xóa chính tài khoản đang đăng nhập!"}), 400
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT username FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return jsonify({"status": "error", "message": "Không tìm thấy người dùng!"}), 404
+        deleted_username = row[0]
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+        conn.close()
+
+        log_event(
+            event_type="XÓA NGƯỜI DÙNG",
+            temp=latest_data["temperature"],
+            smoke=latest_data["smoke"],
+            source=f"ADMIN: {session.get('user', {}).get('username')}",
+            details=f"Đã xóa tài khoản '{deleted_username}' (ID: {user_id})"
+        )
+        return jsonify({"status": "success", "message": f"Đã xóa tài khoản '{deleted_username}' thành công!"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/')
 @login_required
 def index():
@@ -745,12 +959,14 @@ def video_feed():
 def get_status():
     with data_lock:
         with camera_lock:
-            response_data = {
-                "sensor": latest_data,
-                "ai": ai_state,
-                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "user": session.get('user', None)
-            }
+            with device_lock:
+                response_data = {
+                    "sensor": latest_data,
+                    "ai": ai_state,
+                    "devices": devices_health,
+                    "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "user": session.get('user', None)
+                }
     return jsonify(response_data)
 
 @app.route('/api/control', methods=['POST'])

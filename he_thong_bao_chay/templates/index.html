@@ -677,6 +677,11 @@
                 <i class="fa-brands fa-telegram" style="color: var(--accent-telegram);"></i>
                 <span id="telegramStatusText">Telegram: Đang kiểm tra...</span>
             </div>
+            {% if user.role == 'ADMIN' %}
+            <a href="/users" class="nav-btn" style="border-color: rgba(10, 132, 255, 0.4);">
+                <i class="fa-solid fa-users-gear" style="color: var(--accent-blue);"></i> Quản Lý User
+            </a>
+            {% endif %}
             <a href="/history" class="nav-btn">
                 <i class="fa-solid fa-clock-rotate-left"></i> Lịch Sử
             </a>
@@ -708,7 +713,7 @@
             </button>
         </div>
 
-        <!-- CỘT 1: AI CAMERA STREAM & CHART -->
+        <!-- CỘT 1: AI CAMERA STREAM, CHART & DEVICE HEALTH -->
         <div style="display: flex; flex-direction: column; gap: 24px;">
             
             <!-- AI Camera Card -->
@@ -753,6 +758,63 @@
 
                 <div class="chart-container">
                     <canvas id="sensorChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Device Health & Heartbeat Watchdog Card -->
+            <div class="card" style="border-color: rgba(10, 132, 255, 0.25);">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-heart-pulse" style="color: var(--accent-safe);"></i> Giám Sát Sống Còn Thiết Bị (Heartbeat Watchdog)
+                    </div>
+                    <span style="font-size: 0.78rem; color: var(--text-secondary);">Quét tự động: 2s</span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Node 1 Row -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 10px; border: 1px solid var(--bg-card-border);">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="status-dot" id="dotNode1"></div>
+                            <div>
+                                <span style="font-size: 0.88rem; font-weight: 700; display: block;">Node 1: ESP32-C3 Cảm Biến</span>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">DS18B20 + MQ-2 Gas Sensor</span>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <span id="badgeNode1" class="status-badge" style="font-size: 0.75rem; padding: 3px 8px; font-weight: 700; color: var(--accent-safe);">ONLINE</span>
+                            <span id="seenNode1" style="font-size: 0.72rem; color: var(--text-secondary); display: block; font-family: var(--font-mono);">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Node 2 Row -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 10px; border: 1px solid var(--bg-card-border);">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="status-dot" id="dotNode2"></div>
+                            <div>
+                                <span style="font-size: 0.88rem; font-weight: 700; display: block;">Node 2: ESP32-C3 Chấp Hành</span>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Còi Buzzer 5V + Relay Máy Bơm</span>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <span id="badgeNode2" class="status-badge" style="font-size: 0.75rem; padding: 3px 8px; font-weight: 700; color: var(--accent-safe);">ONLINE</span>
+                            <span id="seenNode2" style="font-size: 0.72rem; color: var(--text-secondary); display: block; font-family: var(--font-mono);">--</span>
+                        </div>
+                    </div>
+
+                    <!-- AI Camera Row -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 10px 14px; border-radius: 10px; border: 1px solid var(--bg-card-border);">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="status-dot" id="dotAiCam"></div>
+                            <div>
+                                <span style="font-size: 0.88rem; font-weight: 700; display: block;">AI Vision Server (YOLOv8)</span>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Phát hiện ngọn lửa thời gian thực</span>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <span class="status-badge" style="font-size: 0.75rem; padding: 3px 8px; font-weight: 700; color: var(--accent-safe);">ONLINE</span>
+                            <span id="seenAiCam" style="font-size: 0.72rem; color: var(--text-secondary); display: block; font-family: var(--font-mono);">Active</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1164,6 +1226,48 @@
             chartData.datasets[0].data.push(s.temperature);
             chartData.datasets[1].data.push(s.smoke);
             sensorChart.update();
+
+            // 9. Cập nhật Giám sát Sức Khỏe Thiết Bị (Device Health Watchdog)
+            if (data.devices) {
+                const n1 = data.devices.node_1_sensor;
+                const n2 = data.devices.node_2_actuator;
+
+                // Node 1 (Cảm biến)
+                const dotN1 = document.getElementById('dotNode1');
+                const badgeN1 = document.getElementById('badgeNode1');
+                const seenN1 = document.getElementById('seenNode1');
+                if (n1 && dotN1 && badgeN1 && seenN1) {
+                    if (n1.is_online) {
+                        dotN1.className = 'status-dot';
+                        badgeN1.textContent = 'ONLINE';
+                        badgeN1.style.color = 'var(--accent-safe)';
+                        seenN1.textContent = `Tín hiệu: ${n1.last_seen_str}`;
+                    } else {
+                        dotN1.className = 'status-dot danger';
+                        badgeN1.textContent = 'OFFLINE ⚠️';
+                        badgeN1.style.color = 'var(--accent-fire)';
+                        seenN1.textContent = `Mất lúc: ${n1.last_seen_str || '--'}`;
+                    }
+                }
+
+                // Node 2 (Còi & Relay)
+                const dotN2 = document.getElementById('dotNode2');
+                const badgeN2 = document.getElementById('badgeNode2');
+                const seenN2 = document.getElementById('seenNode2');
+                if (n2 && dotN2 && badgeN2 && seenN2) {
+                    if (n2.is_online) {
+                        dotN2.className = 'status-dot';
+                        badgeN2.textContent = 'ONLINE';
+                        badgeN2.style.color = 'var(--accent-safe)';
+                        seenN2.textContent = `Tín hiệu: ${n2.last_seen_str}`;
+                    } else {
+                        dotN2.className = 'status-dot danger';
+                        badgeN2.textContent = 'OFFLINE ⚠️';
+                        badgeN2.style.color = 'var(--accent-fire)';
+                        seenN2.textContent = `Mất lúc: ${n2.last_seen_str || '--'}`;
+                    }
+                }
+            }
         }
 
         // Slider Threshold Input Handler

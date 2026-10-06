@@ -5,34 +5,36 @@
  *   1. Còi Buzzer (GPIO 6)
  *   2. Module Relay 5V (GPIO 7) đóng ngắt Đèn LED / Máy bơm
  * Giao thức: Wi-Fi STA + MQTT Sub/Pub hai chiều đồng bộ thời gian thực
- * Tính năng: Trễ 3 giây an toàn sau khi hết lửa/khói + Phản hồi trạng thái lên Web
+ * Tính năng: Trễ 3 giây an toàn sau khi hết lửa/khói + Phản hồi trạng thái lên
+ * Web
  * ============================================================================
  */
 
-#include <WiFi.h>
-#include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <PubSubClient.h>
+#include <WiFi.h>
 
 // ==========================================
 // 1. CẤU HÌNH WIFI & MQTT BROKER
 // ==========================================
-const char* WIFI_SSID     = "Thanh Le";
-const char* WIFI_PASSWORD = "0988314531";
+const char *WIFI_SSID = "Phong A2.203 2.4 Ghz";
+const char *WIFI_PASSWORD = "thuvien@123";
 
-const char* mqtt_server   = "192.168.1.4"; // IP máy tính của bạn
-const int   mqtt_port     = 1883;
+const char *mqtt_server = "192.168.11.150"; // IP máy tính của bạn
+const int mqtt_port = 1883;
 
 // Topics MQTT
-const char* TOPIC_SENSOR_DATA = "fire_alarm/sensor_data"; // Nhận từ Node 1
-const char* TOPIC_AI_ALERT    = "fire_alarm/ai_alert";    // Nhận từ AI Camera
-const char* TOPIC_CONTROL     = "fire_alarm/control";     // Nhận lệnh từ Web/Backend
-const char* TOPIC_STATUS      = "fire_alarm/actuator_status"; // Báo cáo trạng thái lên Web
+const char *TOPIC_SENSOR_DATA = "fire_alarm/sensor_data"; // Nhận từ Node 1
+const char *TOPIC_AI_ALERT = "fire_alarm/ai_alert"; // Nhận từ AI Camera
+const char *TOPIC_CONTROL = "fire_alarm/control"; // Nhận lệnh từ Web/Backend
+const char *TOPIC_STATUS =
+    "fire_alarm/actuator_status"; // Báo cáo trạng thái lên Web
 
 // ==========================================
 // 2. CHÂN NGOẠI VI
 // ==========================================
-#define PIN_BUZZER 6   // GPIO 6: Còi Buzzer
-#define PIN_RELAY  7   // GPIO 7: Chân IN của Module Relay
+#define PIN_BUZZER 6 // GPIO 6: Còi Buzzer
+#define PIN_RELAY 7  // GPIO 7: Chân IN của Module Relay
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
@@ -40,32 +42,34 @@ PubSubClient mqttClient(espClient);
 // ==========================================
 // 3. TRẠNG THÁI HỆ THỐNG
 // ==========================================
-bool alert_active = false;          // Báo động tổng (Còi + Đèn)
-String control_mode = "AUTO";       // AUTO hoặc MANUAL
+bool alert_active = false;    // Báo động tổng (Còi + Đèn)
+String control_mode = "AUTO"; // AUTO hoặc MANUAL
 String current_status = "NORMAL";
 
 bool sensor_danger = false;         // Cảm biến đang vượt ngưỡng
 bool ai_danger = false;             // AI đang thấy lửa
 unsigned long last_danger_time = 0; // Thời điểm cuối cùng còn nguy hiểm
-const unsigned long ALARM_HOLD_MS = 3000; // Duy trì còi hú thêm 3 giây sau khi hết lửa/khói
+const unsigned long ALARM_HOLD_MS =
+    3000; // Duy trì còi hú thêm 3 giây sau khi hết lửa/khói
 
 unsigned long last_beep = 0;
 bool beep_state = false;
 
 // Báo cáo trạng thái Node 2 lên MQTT cho Web hiển thị đúng
 void publishActuatorStatus() {
-  if (!mqttClient.connected()) return;
+  if (!mqttClient.connected())
+    return;
   StaticJsonDocument<128> doc;
   doc["buzzer_state"] = alert_active ? "ON" : "OFF";
-  doc["relay_state"]  = alert_active ? "ON" : "OFF";
-  doc["mode"]         = control_mode;
+  doc["relay_state"] = alert_active ? "ON" : "OFF";
+  doc["mode"] = control_mode;
   char buf[128];
   serializeJson(doc, buf);
   mqttClient.publish(TOPIC_STATUS, buf);
 }
 
 // Xử lý gói tin MQTT nhận được
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
+void mqttCallback(char *topic, byte *payload, unsigned int length) {
   String message = "";
   for (unsigned int i = 0; i < length; i++) {
     message += (char)payload[i];
@@ -77,12 +81,14 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     if (!deserializeJson(doc, message)) {
       String status = doc["status"] | "NORMAL";
       int smoke_raw = doc["smoke"] | 0;
-      float temp    = doc["temperature"] | 0.0;
+      float temp = doc["temperature"] | 0.0;
       current_status = status;
 
       if (control_mode == "AUTO") {
         if (status == "FIRE_ALERT" || smoke_raw >= 1400 || temp >= 50.0) {
-          Serial.printf("🔥 Node 2: Nhận BÁO ĐỘNG từ Node 1! (Temp: %.1f°C | Smoke: %d)\n", temp, smoke_raw);
+          Serial.printf(
+              "🔥 Node 2: Nhận BÁO ĐỘNG từ Node 1! (Temp: %.1f°C | Smoke: %d)\n",
+              temp, smoke_raw);
           sensor_danger = true;
           last_danger_time = millis();
         } else {
@@ -97,7 +103,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     StaticJsonDocument<256> doc;
     if (!deserializeJson(doc, message)) {
       bool fire = doc["fire_detected"] | false;
-      const char* action = doc["action"] | "";
+      const char *action = doc["action"] | "";
       if (fire || String(action) == "TRIGGER_ALARM") {
         Serial.println("👁️ Node 2: Nhận BÁO ĐỘNG LỬA từ AI Camera!");
         ai_danger = true;
@@ -114,9 +120,10 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     if (!deserializeJson(doc, message)) {
       Serial.printf("📩 Node 2 nhận lệnh điều khiển: %s\n", message.c_str());
       if (doc.containsKey("mode")) {
-        control_mode = String(doc["mode"].as<const char*>());
+        control_mode = String(doc["mode"].as<const char *>());
       }
-      if (doc.containsKey("buzzer") || doc.containsKey("relay") || doc.containsKey("alert")) {
+      if (doc.containsKey("buzzer") || doc.containsKey("relay") ||
+          doc.containsKey("alert")) {
         String cmd = doc["buzzer"] | doc["relay"] | doc["alert"] | "OFF";
         if (cmd == "ON") {
           Serial.println("🚨 KÍCH HOẠT BÁO ĐỘNG TỪ LỆNH WEB / SOS!");
@@ -163,7 +170,8 @@ void checkNetwork() {
         mqttClient.subscribe(TOPIC_CONTROL);
         publishActuatorStatus();
       } else {
-        Serial.printf(" Thất bại, rc=%d (Sẽ thử lại sau 3s)\n", mqttClient.state());
+        Serial.printf(" Thất bại, rc=%d (Sẽ thử lại sau 3s)\n",
+                      mqttClient.state());
       }
     }
   } else {
@@ -175,7 +183,8 @@ void setup() {
   Serial.begin(115200);
   delay(1500);
 
-  while (!Serial && millis() < 3000) delay(100);
+  while (!Serial && millis() < 3000)
+    delay(100);
 
   Serial.println("\n=======================================================");
   Serial.println("🚨 ESP32-C3 (NODE 2) - TRẠM CÒI & RƠ-LE ĐÈN BÁO ĐỘNG");
@@ -184,7 +193,7 @@ void setup() {
   // Cấu hình chân Output
   pinMode(PIN_BUZZER, OUTPUT);
   pinMode(PIN_RELAY, OUTPUT);
-  digitalWrite(PIN_BUZZER, LOW);  // Tắt còi lúc khởi động
+  digitalWrite(PIN_BUZZER, LOW); // Tắt còi lúc khởi động
   digitalWrite(PIN_RELAY, HIGH); // Tắt relay lúc khởi động (Active LOW)
 
   // Kết nối Wi-Fi
@@ -228,7 +237,8 @@ void loop() {
       last_danger_time = now;
       alert_active = true;
     } else {
-      // Khi đã hết lửa và khói đã giảm: duy trì hú đủ 3 giây (3000ms) rồi mới tắt
+      // Khi đã hết lửa và khói đã giảm: duy trì hú đủ 3 giây (3000ms) rồi mới
+      // tắt
       if (last_danger_time > 0 && (now - last_danger_time < ALARM_HOLD_MS)) {
         alert_active = true;
       } else {
@@ -253,10 +263,9 @@ void loop() {
         digitalWrite(PIN_BUZZER, LOW);
       }
     }
-  } 
-  else {
+  } else {
     noTone(PIN_BUZZER);            // NGẮT DAO ĐỘNG ÂM THANH
-    digitalWrite(PIN_BUZZER, LOW);  // TẮT HẲN ĐIỆN ÁP CÒI
+    digitalWrite(PIN_BUZZER, LOW); // TẮT HẲN ĐIỆN ÁP CÒI
     digitalWrite(PIN_RELAY, HIGH); // NGẮT HẲN RELAY
   }
 

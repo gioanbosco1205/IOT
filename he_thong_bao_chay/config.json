@@ -1,6 +1,6 @@
 {
     "telegram_bot_token": "8881463990:AAGBiafWQ249K_P9obUpjIsZnuC1ElEioIM",
-    "telegram_chat_id": "672968192",
+    "telegram_chat_id": "6729681922",
     "telegram_enabled": true,
     "temp_threshold": 50.0,
     "smoke_threshold": 1250
